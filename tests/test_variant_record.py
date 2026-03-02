@@ -67,3 +67,32 @@ class TestModuleTracking:
         empty_record.mark_module_completed("M1")
         empty_record.mark_module_completed("M1")
         assert empty_record.modules_completed.count("M1") == 1
+
+
+class TestGenomicCoordinateFields:
+    def test_new_fields_exist(self):
+        """New genomic coordinate fields should be on VariantRecord."""
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        assert hasattr(record, "reference_build")
+        assert hasattr(record, "clinvar_chrom")
+        assert hasattr(record, "clinvar_pos")
+        assert hasattr(record, "clinvar_ref")
+        assert hasattr(record, "clinvar_alt")
+        assert hasattr(record, "coordinate_source")
+        assert record.reference_build is None
+        assert record.clinvar_chrom is None
+
+    def test_genomic_fields_serialize(self):
+        """Genomic coordinate fields should survive to_dict/from_dict."""
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        record.reference_build = "GRCh38"
+        record.clinvar_chrom = "17"
+        record.clinvar_pos = 43057051
+        record.clinvar_ref = "G"
+        record.clinvar_alt = "A"
+        record.coordinate_source = "clinvar"
+        d = record.to_dict()
+        restored = VariantRecord.from_dict(d)
+        assert restored.reference_build == "GRCh38"
+        assert restored.clinvar_pos == 43057051
+        assert restored.coordinate_source == "clinvar"

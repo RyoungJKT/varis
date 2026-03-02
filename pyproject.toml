@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "varis"
@@ -55,6 +55,7 @@ dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "pytest-mock>=3.12",
+    "pytest-timeout>=2.2",
     "ruff>=0.1",
     "mypy>=1.7",
 ]
@@ -62,6 +63,9 @@ all = ["varis[ml,structure,platform,dev]"]
 
 [project.scripts]
 varis = "varis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["varis*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -49,6 +49,13 @@
     "ensembl_gene_id": {"type": ["string", "null"]},
     "ensembl_transcript_id": {"type": ["string", "null"]},
 
+    "reference_build": {"type": ["string", "null"], "enum": ["GRCh37", "GRCh38", null]},
+    "clinvar_chrom": {"type": ["string", "null"]},
+    "clinvar_pos": {"type": ["integer", "null"]},
+    "clinvar_ref": {"type": ["string", "null"]},
+    "clinvar_alt": {"type": ["string", "null"]},
+    "coordinate_source": {"type": ["string", "null"]},
+
     "residue_position": {"type": ["integer", "null"]},
     "ref_amino_acid": {"type": ["string", "null"]},
     "alt_amino_acid": {"type": ["string", "null"]},

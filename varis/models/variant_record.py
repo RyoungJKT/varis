@@ -30,7 +30,7 @@ import json
 # =============================================================================
 # SCHEMA VERSION — Increment on any field addition, removal, or type change
 # =============================================================================
-RECORD_SCHEMA_VERSION = "1.0.0"
+RECORD_SCHEMA_VERSION = "1.1.0"
 
 
 # =============================================================================
@@ -103,6 +103,16 @@ class VariantRecord:
     uniprot_id: Optional[str] = None
     ensembl_gene_id: Optional[str] = None
     ensembl_transcript_id: Optional[str] = None
+
+    # =========================================================================
+    # GENOMIC COORDINATES — From ClinVar (populated by M1)
+    # =========================================================================
+    reference_build: Optional[str] = None          # "GRCh37" or "GRCh38"
+    clinvar_chrom: Optional[str] = None            # e.g. "17"
+    clinvar_pos: Optional[int] = None              # genomic position
+    clinvar_ref: Optional[str] = None              # reference nucleotide allele
+    clinvar_alt: Optional[str] = None              # alternate nucleotide allele
+    coordinate_source: Optional[str] = None        # "clinvar" for Phase 1
 
     # =========================================================================
     # VARIANT DETAILS — Parsed from HGVS (populated by M1)
