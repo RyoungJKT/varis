@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Varis Variant Record",
+  "description": "The shared data structure passed through every pipeline module. Version-stamped. All nullable fields must have a corresponding entry in null_reasons explaining why they are null.",
+  "type": "object",
+  "required": ["record_schema_version", "gene_symbol", "hgvs_protein", "variant_id", "null_reasons"],
+  "properties": {
+
+    "record_schema_version": {
+      "type": "string",
+      "description": "Schema version stamp. Increment on any field change. Format: semver.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "examples": ["1.0.0"]
+    },
+    "feature_set_version": {
+      "type": ["string", "null"],
+      "description": "Which feature set was requested/computed.",
+      "enum": ["lite_v1", "full_v1", "full_ddg_v1", null]
+    },
+
+    "gene_symbol": {"type": ["string", "null"]},
+    "hgvs_protein": {"type": ["string", "null"]},
+    "hgvs_coding": {"type": ["string", "null"]},
+    "hgvs_genomic": {"type": ["string", "null"]},
+
+    "canonical_transcript": {"type": ["string", "null"], "description": "MANE Select transcript ID"},
+    "canonical_protein": {"type": ["string", "null"]},
+    "uniprot_residue_position": {"type": ["integer", "null"], "description": "Position in UniProt canonical isoform"},
+    "structure_residue_position": {"type": ["integer", "null"], "description": "Position in PDB/AlphaFold structure"},
+    "coordinate_mapping_method": {
+      "type": ["string", "null"],
+      "enum": ["direct", "sifts", "blast_alignment", null]
+    },
+    "coordinate_mapping_confidence": {
+      "type": ["string", "null"],
+      "enum": ["exact", "high", "low", "failed", null]
+    },
+    "normalization_warnings": {
+      "type": ["array", "null"],
+      "items": {"type": "string"}
+    },
+    "input_notation_normalized": {"type": ["string", "null"]},
+
+    "clinvar_id": {"type": ["string", "null"]},
+    "clinvar_classification": {"type": ["string", "null"]},
+    "clinvar_review_status": {"type": ["string", "null"]},
+    "clinvar_conditions": {"type": ["array", "null"], "items": {"type": "string"}},
+    "uniprot_id": {"type": ["string", "null"]},
+    "ensembl_gene_id": {"type": ["string", "null"]},
+    "ensembl_transcript_id": {"type": ["string", "null"]},
+
+    "residue_position": {"type": ["integer", "null"]},
+    "ref_amino_acid": {"type": ["string", "null"]},
+    "alt_amino_acid": {"type": ["string", "null"]},
+    "ref_aa_single": {"type": ["string", "null"]},
+    "alt_aa_single": {"type": ["string", "null"]},
+    "charge_change": {"type": ["string", "null"]},
+
+    "protein_name": {"type": ["string", "null"]},
+    "protein_sequence": {"type": ["string", "null"]},
+    "protein_length": {"type": ["integer", "null"]},
+    "protein_function": {"type": ["string", "null"]},
+
+    "gnomad_frequency": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "gnomad_popmax": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "gnomad_homozygotes": {"type": ["integer", "null"], "minimum": 0},
+
+    "alphamissense_score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "alphamissense_class": {"type": ["string", "null"], "enum": ["likely_pathogenic", "ambiguous", "likely_benign", null]},
+
+    "structure_source": {"type": ["string", "null"], "enum": ["alphafold", "esmfold", "swissmodel", null]},
+    "pdb_path": {"type": ["string", "null"]},
+    "pdb_fixed_path": {"type": ["string", "null"]},
+    "plddt_score": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "plddt_mean": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "structure_resolution": {"type": ["string", "null"]},
+
+    "ddg_foldx": {"type": ["number", "null"], "description": "kcal/mol, positive = destabilizing"},
+    "ddg_pyrosetta": {"type": ["number", "null"]},
+    "ddg_mean": {"type": ["number", "null"]},
+    "solvent_accessibility": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "burial_category": {"type": ["string", "null"], "enum": ["core", "interface", "surface", null]},
+    "secondary_structure": {"type": ["string", "null"]},
+    "secondary_structure_name": {"type": ["string", "null"]},
+    "helix_disruption": {"type": ["boolean", "null"]},
+    "functional_site_distance": {"type": ["number", "null"]},
+    "nearest_functional_site": {"type": ["string", "null"]},
+    "hbonds_lost": {"type": ["integer", "null"]},
+    "contacts_changed": {"type": ["integer", "null"]},
+    "domain_name": {"type": ["string", "null"]},
+    "domain_id": {"type": ["string", "null"]},
+    "domain_criticality": {"type": ["string", "null"], "enum": ["critical", "moderate", "low", null]},
+
+    "conservation_score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "conservation_method": {"type": ["string", "null"]},
+    "num_orthologs": {"type": ["integer", "null"]},
+    "position_entropy": {"type": ["number", "null"]},
+    "conserved_across_mammals": {"type": ["boolean", "null"]},
+
+    "ddg_available": {"type": ["boolean", "null"]},
+    "ddg_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+    "sasa_available": {"type": ["boolean", "null"]},
+    "sasa_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+    "dssp_available": {"type": ["boolean", "null"]},
+    "dssp_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+    "conservation_available": {"type": ["boolean", "null"]},
+    "conservation_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+    "domain_available": {"type": ["boolean", "null"]},
+    "domain_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+    "contacts_available": {"type": ["boolean", "null"]},
+    "contacts_missing_reason": {"$ref": "#/definitions/null_reason_code"},
+
+    "score_ensemble": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "score_catboost": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "score_xgboost": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "score_lightgbm": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "confidence_lower": {"type": ["number", "null"]},
+    "confidence_upper": {"type": ["number", "null"]},
+    "classification": {"type": ["string", "null"], "enum": ["likely_pathogenic", "uncertain", "likely_benign", null]},
+    "model_agreement": {"type": ["string", "null"], "enum": ["high", "moderate", "low", null]},
+    "shap_top_features": {"type": ["array", "null"]},
+    "ensemble_version": {"type": ["string", "null"]},
+    "features_used": {"type": ["integer", "null"]},
+
+    "acmg_codes": {"type": ["array", "null"], "items": {"type": "string"}},
+    "acmg_pm1": {"type": ["boolean", "null"]},
+    "acmg_pm5": {"type": ["boolean", "null"]},
+    "acmg_pp3": {"type": ["boolean", "null"]},
+    "acmg_pp2": {"type": ["boolean", "null"]},
+    "acmg_ps3_proxy": {"type": ["boolean", "null"]},
+
+    "variant_id": {"type": ["string", "null"]},
+    "pipeline_version": {"type": ["string", "null"]},
+    "investigation_timestamp": {"type": ["string", "null"], "format": "date-time"},
+    "modules_completed": {"type": ["array", "null"], "items": {"type": "string"}},
+    "modules_failed": {"type": ["array", "null"], "items": {"type": "string"}},
+    "tool_versions": {"type": ["object", "null"]},
+    "processing_time_seconds": {"type": ["number", "null"]},
+    "published_to_varisdb": {"type": ["boolean", "null"]},
+    "submitted_to_clinvar": {"type": ["boolean", "null"]},
+
+    "null_reasons": {
+      "type": "object",
+      "description": "Map of field_name → reason code for every null field. Keys are field names, values are NullReason codes.",
+      "additionalProperties": {"$ref": "#/definitions/null_reason_code"}
+    }
+  },
+
+  "definitions": {
+    "null_reason_code": {
+      "type": ["string", "null"],
+      "enum": [
+        "not_attempted",
+        "tool_missing",
+        "tool_crashed",
+        "license_unavailable",
+        "low_confidence_structure",
+        "rate_limited",
+        "timed_out",
+        "no_data_available",
+        "intentionally_skipped",
+        "coordinate_mapping_failed",
+        "upstream_dependency_failed",
+        "isoform_mismatch",
+        "validation_failed",
+        null
+      ]
+    }
+  }
+}

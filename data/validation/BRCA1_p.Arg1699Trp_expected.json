@@ -1,0 +1,19 @@
+{
+  "gene_symbol": "BRCA1",
+  "hgvs_protein": "p.Arg1699Trp",
+  "variant_id": "BRCA1_p.Arg1699Trp",
+  "expected_classification": "likely_pathogenic",
+  "published_evidence": {
+    "clinvar_id": "VCV000055361",
+    "ddg_literature_range": [3.0, 5.0],
+    "domain": "BRCT",
+    "conservation": "100% across mammals",
+    "alphamissense": 0.934,
+    "note": "Well-studied variant in BRCA1 BRCT domain. Disrupts phosphopeptide binding. Used as primary validation case."
+  },
+  "sources": [
+    "ClinVar VCV000055361",
+    "Williams et al., 2004 (J Biol Chem)",
+    "AlphaMissense (Cheng et al., 2023)"
+  ]
+}
