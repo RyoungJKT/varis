@@ -30,7 +30,7 @@ import json
 # =============================================================================
 # SCHEMA VERSION — Increment on any field addition, removal, or type change
 # =============================================================================
-RECORD_SCHEMA_VERSION = "1.1.0"
+RECORD_SCHEMA_VERSION = "1.2.0"
 
 
 # =============================================================================
@@ -151,9 +151,16 @@ class VariantRecord:
     structure_source: Optional[str] = None
     pdb_path: Optional[str] = None
     pdb_fixed_path: Optional[str] = None
-    plddt_score: Optional[float] = None
-    plddt_mean: Optional[float] = None
-    structure_resolution: Optional[str] = None
+    pdb_hash: Optional[str] = None                          # SHA-256 of raw PDB file
+    structure_source_url: Optional[str] = None               # URL the structure was fetched from
+    mutation_site_present: Optional[bool] = None             # Is the mutation residue in the structure?
+    mutation_site_plddt: Optional[float] = None              # pLDDT at the mutation residue
+    plddt_mean: Optional[float] = None                       # Mean pLDDT across all residues
+    plddt_available: Optional[bool] = None                   # Whether pLDDT scores were extractable
+    mutation_site_confidence_bucket: Optional[str] = None    # "very_high" / "confident" / "low" / "very_low"
+    numbering_scheme: Optional[str] = None                   # "uniprot" / "pdb" / "author"
+    structure_quality_summary: Optional[str] = None          # Human-readable quality summary
+    preparation_steps: Optional[list[str]] = None            # Steps applied during structure prep
 
     # =========================================================================
     # STRUCTURAL FEATURES — From 3D analysis (populated by M3)
@@ -161,18 +168,18 @@ class VariantRecord:
     ddg_foldx: Optional[float] = None
     ddg_pyrosetta: Optional[float] = None
     ddg_mean: Optional[float] = None
-    solvent_accessibility: Optional[float] = None
+    solvent_accessibility_relative: Optional[float] = None   # Relative SASA (0.0–1.0)
     burial_category: Optional[str] = None
     secondary_structure: Optional[str] = None
     secondary_structure_name: Optional[str] = None
-    helix_disruption: Optional[bool] = None
-    functional_site_distance: Optional[float] = None
-    nearest_functional_site: Optional[str] = None
-    hbonds_lost: Optional[int] = None
-    contacts_changed: Optional[int] = None
+    contacts_wt: Optional[int] = None                        # Wild-type contact count
+    hbonds_wt: Optional[int] = None                          # Wild-type hydrogen bond count
+    packing_density: Optional[float] = None                  # Local packing density
     domain_name: Optional[str] = None
     domain_id: Optional[str] = None
     domain_criticality: Optional[str] = None
+    domain_start: Optional[int] = None                       # Domain start residue
+    domain_end: Optional[int] = None                         # Domain end residue
 
     # =========================================================================
     # CONSERVATION — Evolutionary analysis (populated by M4)
@@ -327,19 +334,19 @@ class VariantRecord:
         return {
             "ddg_foldx": self.ddg_foldx,
             "ddg_pyrosetta": self.ddg_pyrosetta,
-            "solvent_accessibility": self.solvent_accessibility,
+            "solvent_accessibility_relative": self.solvent_accessibility_relative,
             "secondary_structure": self.secondary_structure_name,
-            "functional_site_distance": self.functional_site_distance,
-            "hbonds_lost": self.hbonds_lost,
-            "contacts_changed": self.contacts_changed,
+            "hbonds_wt": self.hbonds_wt,
+            "contacts_wt": self.contacts_wt,
+            "packing_density": self.packing_density,
             "domain_name": self.domain_name,
             "conservation_score": self.conservation_score,
-            "plddt_score": self.plddt_score,
+            "mutation_site_plddt": self.mutation_site_plddt,
+            "mutation_site_confidence_bucket": self.mutation_site_confidence_bucket,
             "gnomad_frequency": self.gnomad_frequency,
             "alphamissense_score": self.alphamissense_score,
             "charge_change": self.charge_change,
             "burial_category": self.burial_category,
-            "helix_disruption": self.helix_disruption,
         }
 
     def get_feature_availability_flags(self) -> dict:
@@ -391,7 +398,7 @@ class VariantRecord:
                 f"current={RECORD_SCHEMA_VERSION}"
             )
         feature_fields = [
-            "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility",
+            "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility_relative",
             "secondary_structure", "conservation_score", "domain_name",
         ]
         if self.null_reasons is None:
