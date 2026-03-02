@@ -270,3 +270,43 @@ class TestAlphaMissenseClient:
         record.alt_aa_single = "V"
         record = fetch_alphamissense(record)
         assert record is not None
+
+
+class TestM1Integration:
+    @pytest.mark.timeout(120)
+    def test_full_m1_brca1(self):
+        """Run full M1 pipeline on BRCA1 p.Arg1699Trp with real API calls."""
+        import json
+        from varis.m1_ingestion import run
+
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        record = run(record)
+
+        # HGVS parsing
+        assert record.residue_position == 1699
+        assert record.ref_amino_acid == "Arg"
+        assert record.alt_amino_acid == "Trp"
+
+        # UniProt
+        assert record.uniprot_id == "P38398"
+        assert record.protein_sequence is not None
+        assert record.protein_length > 1000
+
+        # Normalizer validation
+        assert record.coordinate_mapping_confidence == "high"
+
+        # ClinVar (should find this well-known variant)
+        assert record.clinvar_id is not None
+
+        # AlphaFold (should download structure)
+        assert record.structure_source == "alphafold"
+        assert record.pdb_path is not None
+
+        # Module tracking
+        assert "M1" in record.modules_completed
+
+        # Should serialize to valid JSON
+        json_str = record.to_json()
+        data = json.loads(json_str)
+        assert data["gene_symbol"] == "BRCA1"
+        assert data["variant_id"] == "BRCA1_p.Arg1699Trp"
