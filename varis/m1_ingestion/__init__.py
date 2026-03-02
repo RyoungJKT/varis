@@ -28,9 +28,9 @@ def run(variant_record: dict) -> dict:
     the others still run. Fields from failed sub-modules remain None
     with reason codes recorded in null_reasons.
 
-    Order matters: hgvs_parser → normalizer → database lookups.
-    The normalizer MUST run before database lookups to ensure correct
-    coordinate mapping across ClinVar, UniProt, and AlphaFold.
+    Order matters: hgvs_parser → uniprot → normalizer → clinvar → gnomad → alphafold → alphamissense.
+    UniProt runs before normalizer because normalizer validates ref AA against UniProt sequence.
+    ClinVar runs before gnomAD because gnomAD needs ClinVar's genomic coordinates.
 
     Args:
         variant_record: VariantRecord with gene_symbol and hgvs_protein set.
@@ -40,10 +40,10 @@ def run(variant_record: dict) -> dict:
     """
     steps = [
         ("M1.hgvs_parser", parse_hgvs),
+        ("M1.uniprot", fetch_uniprot),
         ("M1.normalizer", normalize_variant),
         ("M1.clinvar", fetch_clinvar),
         ("M1.gnomad", fetch_gnomad),
-        ("M1.uniprot", fetch_uniprot),
         ("M1.alphafold", fetch_alphafold_structure),
         ("M1.alphamissense", fetch_alphamissense),
     ]
