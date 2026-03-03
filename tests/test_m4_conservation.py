@@ -1,4 +1,5 @@
 """Tests for M4: Conservation Analysis."""
+import json
 import pytest
 import math
 from unittest.mock import MagicMock, patch
@@ -294,3 +295,127 @@ class TestConSurfFallback:
         m1_completed_record.uniprot_id = None
         result = fetch_consurf(m1_completed_record)
         assert result.conservation_available is False
+
+
+class TestM4Orchestrator:
+    """Tests for M4 orchestration — caching, fallback, integration."""
+
+    def test_m4_no_sequence(self, m1_completed_record, tmp_path):
+        """No protein_sequence and no uniprot_id -> M4 fails gracefully."""
+        from varis.m4_conservation import run
+        m1_completed_record.protein_sequence = None
+        m1_completed_record.uniprot_id = None
+        with patch("varis.m4_conservation._CACHE_DIR", tmp_path / "conservation"):
+            result = run(m1_completed_record)
+        assert "M4" in result.modules_failed
+
+    def test_m4_fallback_to_consurf(self, m1_completed_record, tmp_path):
+        """Primary fails -> ConSurf runs."""
+        from varis.m4_conservation import run
+        cache_dir = tmp_path / "conservation"
+        with patch("varis.m4_conservation._CACHE_DIR", cache_dir):
+            with patch("varis.m4_conservation.uniprot_orthologs.fetch_orthologs",
+                        return_value=(m1_completed_record, None)):
+                mock_response = MagicMock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "grades": {"1699": {"grade": 8}},
+                }
+                mock_client = MagicMock()
+                mock_client.get.return_value = mock_response
+                with patch("varis.m4_conservation.consurf_fallback.httpx.Client",
+                            return_value=mock_client):
+                    result = run(m1_completed_record)
+        assert result.conservation_score is not None
+        assert result.conservation_method == "consurf"
+        assert "M4" in result.modules_completed
+
+    def test_m4_integration(self, m1_completed_record, tmp_path):
+        """Full pipeline with mocks — golden record check."""
+        from varis.m4_conservation import run
+        # Build sequence with R at position 1699 (0-indexed: 1698)
+        seq = "M" * 1698 + "R" + "M" * (1863 - 1699)
+        orthologs = {
+            "sequences": {
+                "query": seq,
+                **{f"orth{i}": seq for i in range(15)},
+            },
+            "query_id": "query",
+            "taxonomy": {f"orth{i}": 9606 + i for i in range(15)},
+        }
+        cache_dir = tmp_path / "conservation"
+        with patch("varis.m4_conservation._CACHE_DIR", cache_dir):
+            with patch("varis.m4_conservation.uniprot_orthologs.fetch_orthologs",
+                        return_value=(m1_completed_record, orthologs)):
+                with patch("varis.m4_conservation.clustal_client.run_alignment",
+                            return_value=(m1_completed_record, orthologs)):
+                    result = run(m1_completed_record)
+        assert "M4" in result.modules_completed
+        assert result.conservation_available is True
+        assert result.conservation_score is not None
+        assert 0.0 <= result.conservation_score <= 1.0
+        assert result.conservation_method == "clustal_omega"
+
+    def test_m4_cache_hit(self, m1_completed_record, tmp_path):
+        """Cached scores are loaded without running the pipeline."""
+        from varis.m4_conservation import run
+        # Prepare a cache file
+        cache_dir = tmp_path / "conservation"
+        cache_dir.mkdir()
+        cache_data = {
+            "method": "clustal_omega",
+            "num_orthologs": 45,
+            "msa_num_sequences": 46,
+            "positions": {
+                "1699": {
+                    "conservation_score": 0.95,
+                    "position_entropy": 0.22,
+                    "msa_column_index": 1699,
+                    "msa_gap_fraction_at_site": 0.02,
+                    "conserved_across_mammals": True,
+                }
+            },
+        }
+        cache_file = cache_dir / "P38398_scores.json"
+        with open(cache_file, "w") as f:
+            json.dump(cache_data, f)
+
+        with patch("varis.m4_conservation._CACHE_DIR", cache_dir):
+            result = run(m1_completed_record)
+
+        assert "M4" in result.modules_completed
+        assert result.conservation_score == pytest.approx(0.95)
+        assert result.conservation_method == "clustal_omega"
+        assert result.num_orthologs == 45
+        assert result.msa_num_sequences == 46
+        assert result.position_entropy == pytest.approx(0.22)
+
+    def test_m4_cache_save(self, m1_completed_record, tmp_path):
+        """After successful scoring, cache is written."""
+        from varis.m4_conservation import run
+        # Build sequence with R at position 1699 (0-indexed: 1698)
+        seq = "M" * 1698 + "R" + "M" * (1863 - 1699)
+        orthologs = {
+            "sequences": {
+                "query": seq,
+                **{f"orth{i}": seq for i in range(15)},
+            },
+            "query_id": "query",
+            "taxonomy": {f"orth{i}": 9606 + i for i in range(15)},
+        }
+        cache_dir = tmp_path / "conservation"
+
+        with patch("varis.m4_conservation._CACHE_DIR", cache_dir):
+            with patch("varis.m4_conservation.uniprot_orthologs.fetch_orthologs",
+                        return_value=(m1_completed_record, orthologs)):
+                with patch("varis.m4_conservation.clustal_client.run_alignment",
+                            return_value=(m1_completed_record, orthologs)):
+                    result = run(m1_completed_record)
+
+        assert "M4" in result.modules_completed
+        cache_file = cache_dir / "P38398_scores.json"
+        assert cache_file.exists()
+        with open(cache_file) as f:
+            saved = json.load(f)
+        assert "1699" in saved["positions"]
+        assert saved["positions"]["1699"]["conservation_score"] is not None
