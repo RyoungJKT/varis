@@ -28,6 +28,8 @@ ESMFOLD_API_URL = "https://api.esmatlas.com/foldSequence/v1/pdb"
 ALPHAMISSENSE_URL = "https://zenodo.org/records/8208688"
 NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
 INTERPRO_API_URL = "https://www.ebi.ac.uk/interpro/api"
+CONSURF_API_URL = "https://consurf.tau.ac.il/results"
+CLUSTAL_OMEGA_URL = "https://www.ebi.ac.uk/Tools/services/rest/clustalo"
 
 # =========================================================================
 # API KEYS (from environment variables)
