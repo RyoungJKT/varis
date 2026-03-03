@@ -699,6 +699,21 @@ class TestCLI:
         assert get_current_version(archive_root) == "v2026.01"
 
 
+class TestStubImports:
+    """Verify stub modules can be imported without errors."""
+
+    def test_tool_scout_imports(self):
+        """tool_scout.py should import without ImportError."""
+        from varis.m7_evolution import tool_scout
+        assert hasattr(tool_scout, "scan_sources")
+        assert hasattr(tool_scout, "SCOUT_SOURCES")
+
+    def test_auto_integrator_imports(self):
+        """auto_integrator.py should import without ImportError."""
+        from varis.m7_evolution import auto_integrator
+        assert hasattr(auto_integrator, "attempt_integration")
+
+
 class TestM7Run:
     """Tests for the M7 module-level run() function."""
 
