@@ -308,3 +308,39 @@ class TestEvidenceMapper:
         fully_populated_record.domain_criticality = "peripheral"
         result = map_evidence_tags(fully_populated_record)
         assert result.evidence_domain_context is False
+
+
+class TestDataLoader:
+    """Tests for data_loader.py — ClinVar parsing and splitting."""
+
+    def test_gene_stratified_split(self):
+        """No gene appears in both train and test."""
+        from varis.m5_scoring.data_loader import gene_stratified_split
+        import pandas as pd
+        df = pd.DataFrame({
+            "gene": ["BRCA1"] * 20 + ["TP53"] * 20 + ["CFTR"] * 20,
+            "label": [1] * 10 + [0] * 10 + [1] * 10 + [0] * 10 + [1] * 10 + [0] * 10,
+            "feat": range(60),
+        })
+        for train_idx, test_idx in gene_stratified_split(df, n_splits=3):
+            train_genes = set(df.iloc[train_idx]["gene"])
+            test_genes = set(df.iloc[test_idx]["gene"])
+            assert train_genes.isdisjoint(test_genes), "Gene in both train and test!"
+
+    def test_split_preserves_class_ratio(self):
+        """Stratified: similar pathogenic/benign ratio in each fold."""
+        from varis.m5_scoring.data_loader import gene_stratified_split
+        import pandas as pd
+        df = pd.DataFrame({
+            "gene": ["BRCA1"] * 20 + ["TP53"] * 20 + ["CFTR"] * 20 + ["MLH1"] * 20 + ["MSH2"] * 20,
+            "label": ([1] * 10 + [0] * 10) * 5,
+            "feat": range(100),
+        })
+        ratios = []
+        for train_idx, test_idx in gene_stratified_split(df, n_splits=5):
+            test_labels = df.iloc[test_idx]["label"]
+            ratio = test_labels.mean()
+            ratios.append(ratio)
+        # Each fold should have roughly 50% pathogenic (within tolerance)
+        for r in ratios:
+            assert 0.2 < r < 0.8, f"Extreme class imbalance in fold: {r}"
