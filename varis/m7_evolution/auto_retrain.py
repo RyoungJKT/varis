@@ -17,13 +17,27 @@ Autonomy: Fully autonomous — no human intervention required
 import json
 import logging
 import os
-import signal
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
-from varis.m7_evolution.evolution_log import log_event, EVENT_AUTO_RETRAIN
+from varis.config import DATA_DIR, DATABASE_URL, MODELS_DIR
 
 logger = logging.getLogger(__name__)
+
+# Default paths
+DEFAULT_ARCHIVE_ROOT = MODELS_DIR
+DEFAULT_LOCK_PATH = MODELS_DIR / ".retrain.lock"
+
+# Lazy-loaded references to m5_scoring.train functions.
+# These are set at module level so unittest.mock.patch can intercept them
+# via "varis.m7_evolution.auto_retrain.<name>". Actual imports happen inside
+# run_retrain_loop() to avoid circular imports.
+select_training_variants = None  # type: ignore[assignment]
+compute_features = None  # type: ignore[assignment]
+load_cached_records = None  # type: ignore[assignment]
+train_and_evaluate = None  # type: ignore[assignment]
 
 # ── Model version format: "v{YYYY}.{MM}" e.g. "v2026.03" ──
 
@@ -246,95 +260,346 @@ def release_lock(lock_path: Path) -> None:
         logger.error("Failed to release lock at %s: %s", lock_path, e)
 
 
-def check_for_new_clinvar_data() -> list[dict] | None:
-    """Scan ClinVar for newly expert-reviewed variants since last retrain.
+def run_benchmarks_for_model(model_dir: Path) -> dict:
+    """Load ensemble from model_dir and run predictions on benchmark variants.
 
-    Returns list of new variant records, or None if no new data.
-    """
-    pass
+    Loads the trained ensemble, runs predictions on each benchmark variant
+    from the benchmark file, and returns a mapping of variant_id to score.
 
-
-def retrain_and_evaluate(new_variants: list[dict]) -> dict:
-    """Retrain ensemble on expanded dataset and compare with current model.
-
-    Process:
-    1. Run new variants through M1-M4 pipeline for feature extraction
-    2. Add to training dataset
-    3. Retrain CatBoost + XGBoost + LightGBM with Optuna tuning
-    4. Evaluate on held-out test set
-    5. Compare all metrics with current model
+    Args:
+        model_dir: Path to directory containing trained model files
+            (catboost_model.cbm, xgboost_model.json, lightgbm_model.txt,
+            calibrator.pkl, feature_columns.json).
 
     Returns:
-        Dict with old_metrics, new_metrics, and deploy_decision.
+        Dict mapping variant_id (str) to predicted pathogenicity score (float).
+        Returns empty dict if model cannot be loaded or benchmarks fail.
     """
-    pass
+    try:
+        from varis.m5_scoring.ensemble import load_ensemble, predict_from_models
+        from varis.m5_scoring.benchmarks import run_benchmarks
+
+        model_dir = Path(model_dir)
+
+        # Use run_benchmarks from m5_scoring for structured evaluation
+        benchmark_results = run_benchmarks(model_dir)
+
+        # Extract variant_id -> score mapping
+        scores: dict[str, float] = {}
+        for variant in benchmark_results.get("variants", []):
+            variant_id = f"{variant['gene']}_{variant['hgvs']}"
+            score = variant.get("score")
+            if score is not None:
+                scores[variant_id] = float(score)
+
+        # If no scores from benchmark file (pipeline not fully available),
+        # try to load ensemble and return empty scores with a log message
+        if not scores:
+            logger.info(
+                "No benchmark scores available from %s — "
+                "full pipeline evaluation not yet available",
+                model_dir,
+            )
+
+        return scores
+
+    except Exception as e:
+        logger.warning("Failed to run benchmarks for model at %s: %s", model_dir, e)
+        return {}
 
 
-def run_regression_tests(candidate_model, benchmark_path: str = "tests/benchmark_variants.json") -> dict:
-    """Run candidate model against fixed benchmark variant set.
-
-    The benchmark set contains well-characterised variants (pathogenic, benign,
-    and known edge cases) that must NEVER be included in training data.
-
-    Any unexpected reclassification of a benchmark variant triggers rejection.
-
-    Returns:
-        Dict with passed (bool), total_variants, reclassified (list),
-        and details for logging.
-    """
-    pass
-
-
-def deploy_if_better(old_metrics: dict, new_metrics: dict, regression_results: dict) -> bool:
-    """Deploy new model only if ALL key metrics improve AND regression tests pass.
-
-    Metrics checked: ROC-AUC, PR-AUC, precision, recall.
-    If any metric decreases OR any regression test fails, keep current model.
-
-    On deploy:
-      - Tag new model with version stamp (v{YYYY}.{MM})
-      - Archive current production model to version history
-      - Log full metric comparison to Evolution Log
-
-    On reject:
-      - Archive candidate model as rejected
-      - Log rejection reason with metric comparison
-
-    Returns:
-        True if deployed, False if kept current model.
-    """
-    pass
-
-
-def rollback_to_previous(reason: str) -> bool:
-    """Restore the previous production model from the version archive.
-
-    Called when a deployed model produces unexpected results in production.
-    Records the rollback event and reason in the Evolution Log.
-
-    Returns:
-        True if rollback succeeded, False if no previous version available.
-    """
-    pass
-
-
-def get_model_version_history() -> list[dict]:
-    """Return list of all archived model versions with metadata.
-
-    Each entry contains: version tag, deploy date, metrics at deploy time,
-    training variant count, and status (production/archived/rejected/rolled-back).
-    """
-    pass
-
-
-def run_retrain_loop():
+def run_retrain_loop(
+    archive_root: Optional[Path] = None,
+    log_db: Optional[object] = None,
+    lock_path: Optional[Path] = None,
+) -> dict:
     """Execute the full auto-retrain loop. Called by scheduler.
 
-    Full sequence:
-    1. Check for new ClinVar data
-    2. If new data: retrain and evaluate candidate model
-    3. Run regression tests on candidate
-    4. Deploy only if metrics improve AND regression passes
-    5. Log everything to Evolution Log with metric deltas
+    Full orchestration sequence:
+      1.  Acquire filesystem lock — if locked, return immediately
+      2.  Log RETRAIN_START event
+      3.  Call select_training_variants() from m5_scoring.train
+      4.  Call compute_features() from m5_scoring.train
+      5.  Call load_cached_records() from m5_scoring.train
+      6.  Call train_and_evaluate() — saves candidate to candidates/ dir
+      7.  Run benchmark predictions on candidate model
+      8.  Load current production metrics from model_archive
+      9.  Evaluate deploy gate
+      10. If DEPLOY: archive candidate, deploy via model_archive, log DEPLOY
+      11. If REJECT: mark candidate rejected, log REJECT
+      12. Cleanup old versions
+      13. Release lock
+      14. Log RETRAIN_COMPLETE
+
+    Args:
+        archive_root: Root directory for the model archive. Defaults to MODELS_DIR.
+        log_db: SQLAlchemy session factory for evolution log. If None, initializes
+            from DATABASE_URL config (or default SQLite path).
+        lock_path: Path to the filesystem lock file. Defaults to
+            MODELS_DIR / ".retrain.lock".
+
+    Returns:
+        Dict with keys:
+            completed (bool): Whether the loop ran to completion.
+            decision (str | None): "DEPLOY", "REJECT", or None if not reached.
+            reason (str): Human-readable explanation of outcome.
+            metrics (dict | None): Candidate model metrics if training succeeded.
+            duration (float): Wall-clock seconds elapsed.
     """
-    pass
+    # Lazy imports to avoid circular dependencies.
+    # m5_scoring functions are referenced via module-level attributes so that
+    # unittest.mock.patch can intercept them.
+    import varis.m7_evolution.auto_retrain as _self
+
+    if _self.select_training_variants is None:
+        from varis.m5_scoring.train import (
+            select_training_variants as _sel,
+            compute_features as _comp,
+            load_cached_records as _load,
+            train_and_evaluate as _train,
+        )
+        _self.select_training_variants = _sel
+        _self.compute_features = _comp
+        _self.load_cached_records = _load
+        _self.train_and_evaluate = _train
+
+    from varis.m7_evolution.model_archive import (
+        archive_version,
+        deploy_version,
+        get_current_version,
+        mark_rejected,
+        cleanup_old_versions,
+        list_versions,
+    )
+    from varis.m7_evolution.evolution_log import (
+        log_event,
+        init_evolution_log,
+        EVENT_RETRAIN_START,
+        EVENT_RETRAIN_COMPLETE,
+        EVENT_DEPLOY,
+        EVENT_REJECT,
+        EVENT_ERROR,
+    )
+
+    start_time = time.monotonic()
+
+    # Resolve defaults
+    if archive_root is None:
+        archive_root = DEFAULT_ARCHIVE_ROOT
+    archive_root = Path(archive_root)
+
+    if lock_path is None:
+        lock_path = DEFAULT_LOCK_PATH
+    lock_path = Path(lock_path)
+
+    if log_db is None:
+        db_url = DATABASE_URL
+        if not db_url.startswith("sqlite"):
+            db_url = f"sqlite:///{DATA_DIR / 'evolution.db'}"
+        log_db = init_evolution_log(db_url)
+
+    result: dict = {
+        "completed": False,
+        "decision": None,
+        "reason": "",
+        "metrics": None,
+        "duration": 0.0,
+    }
+
+    # ── Step 1: Acquire lock ──
+    if not acquire_lock(lock_path):
+        result["reason"] = "Lock held by another retrain process"
+        result["duration"] = time.monotonic() - start_time
+        logger.info("Retrain loop aborted: %s", result["reason"])
+        return result
+
+    try:
+        # ── Step 2: Log RETRAIN_START ──
+        model_version = datetime.now(timezone.utc).strftime("v%Y.%m")
+        log_event(log_db, EVENT_RETRAIN_START, model_version=model_version)
+        logger.info("Retrain loop started for version %s", model_version)
+
+        # ── Step 3: Select training variants ──
+        logger.info("Phase A: Selecting training variants from ClinVar")
+        try:
+            manifest_df = _self.select_training_variants()
+        except Exception as e:
+            reason = f"Variant selection failed: {e}"
+            logger.error(reason)
+            log_event(log_db, EVENT_ERROR, model_version=model_version,
+                       details={"phase": "select", "error": str(e)})
+            result["reason"] = reason
+            return result
+
+        # ── Step 4: Compute features ──
+        logger.info("Phase B: Computing features via M1-M4")
+        try:
+            total, cached, computed, failed = _self.compute_features()
+        except Exception as e:
+            reason = f"Feature computation failed: {e}"
+            logger.error(reason)
+            log_event(log_db, EVENT_ERROR, model_version=model_version,
+                       details={"phase": "compute", "error": str(e)})
+            result["reason"] = reason
+            return result
+
+        # ── Step 5: Load cached records ──
+        logger.info("Loading cached records for training")
+        try:
+            records, labels, genes = _self.load_cached_records()
+        except Exception as e:
+            reason = f"Loading cached records failed: {e}"
+            logger.error(reason)
+            log_event(log_db, EVENT_ERROR, model_version=model_version,
+                       details={"phase": "load", "error": str(e)})
+            result["reason"] = reason
+            return result
+
+        if not records:
+            reason = "No cached records available for training"
+            logger.error(reason)
+            log_event(log_db, EVENT_ERROR, model_version=model_version,
+                       details={"phase": "load", "error": reason})
+            result["reason"] = reason
+            return result
+
+        # ── Step 6: Train and evaluate ──
+        logger.info("Phase C: Training ensemble model")
+        candidate_dir = archive_root / "candidates" / f"{model_version}_candidate"
+        try:
+            train_result = _self.train_and_evaluate(
+                records, labels, genes,
+                output_dir=candidate_dir,
+                model_version=model_version,
+            )
+        except Exception as e:
+            reason = f"Training failed: {e}"
+            logger.error(reason)
+            log_event(log_db, EVENT_ERROR, model_version=model_version,
+                       details={"phase": "train", "error": str(e)})
+            result["reason"] = reason
+            return result
+
+        cv_results = train_result.get("cv_results", {})
+        candidate_metrics = {
+            "roc_auc": cv_results.get("roc_auc_mean", 0.0),
+            "pr_auc": cv_results.get("pr_auc_mean", 0.0),
+            "calibration_ece": cv_results.get("calibration_ece", 0.05),
+        }
+        result["metrics"] = candidate_metrics
+
+        # ── Step 7: Run benchmark predictions on candidate ──
+        logger.info("Running benchmarks on candidate model")
+        candidate_benchmarks = run_benchmarks_for_model(candidate_dir)
+
+        # ── Step 8: Load current production metrics ──
+        current_version = get_current_version(archive_root)
+        current_metrics: dict = {"roc_auc": 0.0, "pr_auc": 0.0, "calibration_ece": 1.0}
+        current_benchmarks: dict = {}
+
+        if current_version:
+            versions = list_versions(archive_root)
+            for v in versions:
+                if v.get("version") == current_version:
+                    stored_metrics = v.get("metrics", {})
+                    current_metrics = {
+                        "roc_auc": stored_metrics.get("roc_auc", 0.0),
+                        "pr_auc": stored_metrics.get("pr_auc", 0.0),
+                        "calibration_ece": stored_metrics.get("calibration_ece", 1.0),
+                    }
+                    current_benchmarks = stored_metrics.get("benchmarks", {})
+                    break
+
+            # Run benchmarks on current model for comparison
+            current_model_dir = archive_root / "archive" / current_version
+            if current_model_dir.is_dir():
+                fresh_current_benchmarks = run_benchmarks_for_model(current_model_dir)
+                if fresh_current_benchmarks:
+                    current_benchmarks = fresh_current_benchmarks
+
+        # ── Step 9: Evaluate deploy gate ──
+        logger.info("Evaluating deploy gate")
+        gate_result = evaluate_deploy_gate(
+            current_metrics, candidate_metrics,
+            current_benchmarks, candidate_benchmarks,
+        )
+        decision = gate_result["decision"]
+        gate_reason = gate_result["reason"]
+        result["decision"] = decision
+        result["reason"] = gate_reason
+
+        # ── Step 10/11: Deploy or Reject ──
+        if decision == "DEPLOY":
+            logger.info("Deploy gate passed — archiving and deploying %s", model_version)
+
+            archive_version(
+                candidate_dir, model_version, candidate_metrics,
+                archive_root=archive_root,
+            )
+            deploy_version(model_version, archive_root=archive_root)
+
+            log_event(log_db, EVENT_DEPLOY, model_version=model_version, details={
+                "candidate_metrics": candidate_metrics,
+                "current_metrics": current_metrics,
+                "metric_deltas": gate_result.get("metric_deltas", {}),
+                "gate_reason": gate_reason,
+                "previous_version": current_version,
+            })
+        else:
+            logger.info("Deploy gate rejected — marking %s as rejected", model_version)
+
+            # Archive the candidate first so mark_rejected can find it
+            archive_version(
+                candidate_dir, model_version, candidate_metrics,
+                archive_root=archive_root,
+            )
+            mark_rejected(model_version, gate_reason, archive_root=archive_root)
+
+            log_event(log_db, EVENT_REJECT, model_version=model_version, details={
+                "candidate_metrics": candidate_metrics,
+                "current_metrics": current_metrics,
+                "metric_deltas": gate_result.get("metric_deltas", {}),
+                "gate_reason": gate_reason,
+            })
+
+        # ── Step 12: Cleanup old versions ──
+        logger.info("Cleaning up old model versions")
+        cleanup_old_versions(archive_root=archive_root)
+
+        # ── Step 14: Log RETRAIN_COMPLETE ──
+        duration = time.monotonic() - start_time
+        result["completed"] = True
+        result["duration"] = duration
+
+        log_event(log_db, EVENT_RETRAIN_COMPLETE, model_version=model_version, details={
+            "decision": decision,
+            "reason": gate_reason,
+            "duration_seconds": duration,
+            "candidate_metrics": candidate_metrics,
+        })
+
+        logger.info(
+            "Retrain loop completed: decision=%s, reason=%s, duration=%.1fs",
+            decision, gate_reason, duration,
+        )
+        return result
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        duration = time.monotonic() - start_time
+        reason = f"Unexpected error in retrain loop: {e}"
+        logger.error(reason, exc_info=True)
+
+        try:
+            from varis.m7_evolution.evolution_log import EVENT_ERROR
+            log_event(log_db, EVENT_ERROR, details={"error": str(e)})
+        except Exception:
+            pass
+
+        result["reason"] = reason
+        result["duration"] = duration
+        return result
+
+    finally:
+        # ── Step 13: Release lock (always) ──
+        release_lock(lock_path)

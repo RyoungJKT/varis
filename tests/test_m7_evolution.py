@@ -1,14 +1,17 @@
-"""Tests for M7: Self-Evolution — Model Archive, Evolution Log, Deploy Gate, and Lock."""
+"""Tests for M7: Self-Evolution — Model Archive, Evolution Log, Deploy Gate, Lock, and Retrain Loop."""
 
 import json
 import os
 import pytest
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from varis.m7_evolution.auto_retrain import (
     evaluate_deploy_gate,
     acquire_lock,
     release_lock,
+    run_benchmarks_for_model,
+    run_retrain_loop,
 )
 from varis.m7_evolution.model_archive import (
     archive_version,
@@ -478,3 +481,109 @@ class TestConcurrencyLock:
         assert lock_data["pid"] == os.getpid()
 
         release_lock(lock_file)
+
+
+class TestRetrainLoop:
+    """Tests for the full auto-retrain orchestration loop."""
+
+    def test_retrain_loop_mocked(self, tmp_path: Path) -> None:
+        """Full loop with mocked training -- completes."""
+        from varis.m7_evolution.evolution_log import init_evolution_log
+        from varis.m7_evolution.model_archive import archive_version, deploy_version
+
+        # Set up: archive a "current" model first
+        src = tmp_path / "src"
+        src.mkdir()
+        for f in [
+            "catboost_model.cbm",
+            "xgboost_model.json",
+            "lightgbm_model.txt",
+            "calibrator.pkl",
+            "feature_columns.json",
+        ]:
+            (src / f).write_text("fake")
+        archive_version(
+            src,
+            "v2026.03",
+            {"roc_auc": 0.85, "pr_auc": 0.82, "calibration_ece": 0.05},
+            archive_root=tmp_path,
+        )
+        deploy_version("v2026.03", archive_root=tmp_path)
+
+        log_db = init_evolution_log(f"sqlite:///{tmp_path}/evo.db")
+
+        # Mock the training pipeline
+        with patch("varis.m7_evolution.auto_retrain.select_training_variants") as mock_sel, \
+             patch("varis.m7_evolution.auto_retrain.compute_features") as mock_comp, \
+             patch("varis.m7_evolution.auto_retrain.load_cached_records") as mock_load, \
+             patch("varis.m7_evolution.auto_retrain.train_and_evaluate") as mock_train, \
+             patch("varis.m7_evolution.auto_retrain.run_benchmarks_for_model") as mock_bench:
+
+            mock_sel.return_value = MagicMock()
+            mock_comp.return_value = (100, 50, 50, 0)
+            mock_load.return_value = (
+                [],
+                [1] * 50 + [0] * 50,
+                ["BRCA1"] * 50 + ["TP53"] * 50,
+            )
+            # Return value that won't trip "not records" check:
+            # The load returns empty records list, but we need at least one
+            # record for the "if not records" check to pass.
+            mock_load.return_value = (
+                [MagicMock()],
+                [1] * 50 + [0] * 50,
+                ["BRCA1"] * 50 + ["TP53"] * 50,
+            )
+            mock_train.return_value = {
+                "cv_results": {
+                    "roc_auc_mean": 0.90,
+                    "pr_auc_mean": 0.88,
+                    "pr_auc_std": 0.02,
+                    "roc_auc_std": 0.02,
+                },
+                "model_version": "v2026.04",
+            }
+
+            # Create fake candidate model files
+            cand_dir = tmp_path / "candidates" / "v2026.04_candidate"
+            cand_dir.mkdir(parents=True)
+            for f in [
+                "catboost_model.cbm",
+                "xgboost_model.json",
+                "lightgbm_model.txt",
+                "calibrator.pkl",
+                "feature_columns.json",
+            ]:
+                (cand_dir / f).write_text("fake candidate")
+
+            mock_bench.return_value = {"BRCA1_p.Arg1699Trp": 0.91}
+
+            result = run_retrain_loop(
+                archive_root=tmp_path,
+                log_db=log_db,
+                lock_path=tmp_path / ".lock",
+            )
+
+        assert result["completed"] is True
+        assert result["decision"] in ("DEPLOY", "REJECT")
+        assert result["duration"] > 0.0
+
+    def test_retrain_loop_locked(self, tmp_path: Path) -> None:
+        """Lock held -- exits without training."""
+        from varis.m7_evolution.evolution_log import init_evolution_log
+
+        log_db = init_evolution_log(f"sqlite:///{tmp_path}/evo.db")
+        lock_path = tmp_path / ".lock"
+        acquire_lock(lock_path)
+
+        result = run_retrain_loop(
+            archive_root=tmp_path,
+            log_db=log_db,
+            lock_path=lock_path,
+        )
+
+        assert result["completed"] is False
+        assert "lock" in result.get("reason", "").lower()
+
+        # Clean up the lock for other tests
+        release_lock(lock_path)
