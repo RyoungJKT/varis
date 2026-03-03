@@ -207,3 +207,57 @@ class TestWorker:
             assert job["status"] == "succeeded"
             worker.shutdown()
         session.close()
+
+
+class TestAPIEndpoints:
+    """Tests for FastAPI routes."""
+
+    @pytest.fixture
+    def client(self, tmp_path):
+        from fastapi.testclient import TestClient
+        from varis.m6_platform.api.main import create_app
+        app = create_app(database_url=f"sqlite:///{tmp_path}/test.db")
+        return TestClient(app)
+
+    def test_health_check(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+    def test_get_investigation_not_found(self, client):
+        resp = client.get("/api/v1/investigations/NONEXISTENT")
+        assert resp.status_code == 404
+
+    def test_submit_investigation(self, client):
+        resp = client.post("/api/v1/investigations", json={"gene": "BRCA1", "hgvs": "p.Arg1699Trp"})
+        assert resp.status_code in (200, 201, 202)
+        data = resp.json()
+        assert "job_id" in data or "variant_id" in data
+
+    def test_submit_invalid_input(self, client):
+        resp = client.post("/api/v1/investigations", json={"gene": "", "hgvs": ""})
+        assert resp.status_code == 422
+
+    def test_search_empty(self, client):
+        resp = client.get("/api/v1/variants?q=BRCA1")
+        assert resp.status_code == 200
+        assert "results" in resp.json()
+
+    def test_stats(self, client):
+        resp = client.get("/api/v1/variants/stats")
+        assert resp.status_code == 200
+
+    def test_get_job_not_found(self, client):
+        resp = client.get("/api/v1/jobs/nonexistent-id")
+        assert resp.status_code == 404
+
+    def test_cors_headers(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 200
+        assert "access-control-allow-origin" in resp.headers
