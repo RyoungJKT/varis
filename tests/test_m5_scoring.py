@@ -344,3 +344,41 @@ class TestDataLoader:
         # Each fold should have roughly 50% pathogenic (within tolerance)
         for r in ratios:
             assert 0.2 < r < 0.8, f"Extreme class imbalance in fold: {r}"
+
+
+class TestAblation:
+    """Tests for ablation.py — feature group removal."""
+
+    def test_ablation_removes_group(self):
+        """Removing a feature group sets those columns to NaN."""
+        from varis.m5_scoring.ablation import drop_feature_group
+        import pandas as pd
+        X = pd.DataFrame({
+            "conservation_score": [0.9, 0.8],
+            "ddg_foldx": [1.0, 2.0],
+            "sasa_available": [True, True],
+            "conservation_available": [True, True],
+        })
+        result = drop_feature_group(X, "conservation")
+        assert result["conservation_score"].isna().all()
+        assert result["conservation_available"].eq(False).all()
+        # Other features untouched
+        assert not result["ddg_foldx"].isna().any()
+
+    def test_ablation_runs_and_returns_metrics(self, tmp_path):
+        """Run ablation produces metrics dict."""
+        from varis.m5_scoring.ablation import run_ablation
+        import pandas as pd
+        np.random.seed(42)
+        n = 60
+        X = pd.DataFrame({
+            "f1": np.random.randn(n),
+            "f2": np.random.randn(n),
+            "conservation_score": np.random.randn(n),
+            "conservation_available": [True] * n,
+        })
+        y = pd.Series((X["f1"] > 0).astype(int))
+        genes = pd.Series(["A"] * 20 + ["B"] * 20 + ["C"] * 20)
+        results = run_ablation(X, y, genes, groups=["conservation"], output_dir=tmp_path)
+        assert "without_conservation" in results
+        assert "roc_auc" in results["without_conservation"]
