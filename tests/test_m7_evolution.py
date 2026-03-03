@@ -1,9 +1,15 @@
-"""Tests for M7: Self-Evolution — Model Archive and Evolution Log."""
+"""Tests for M7: Self-Evolution — Model Archive, Evolution Log, Deploy Gate, and Lock."""
 
 import json
+import os
 import pytest
 from pathlib import Path
 
+from varis.m7_evolution.auto_retrain import (
+    evaluate_deploy_gate,
+    acquire_lock,
+    release_lock,
+)
 from varis.m7_evolution.model_archive import (
     archive_version,
     deploy_version,
@@ -321,3 +327,154 @@ class TestEvolutionLog:
         events = get_log(log_db)
         assert events[0]["model_version"] == "v2026.03"
         assert events[2]["model_version"] == "v2026.01"
+
+
+class TestDeployGate:
+    """Tests for evaluate_deploy_gate threshold logic."""
+
+    def _base_metrics(self) -> dict:
+        """Return a baseline metrics dict."""
+        return {"roc_auc": 0.90, "pr_auc": 0.85, "calibration_ece": 0.05}
+
+    def _base_benchmarks(self) -> dict:
+        """Return a baseline benchmarks dict."""
+        return {"BRCA1_R1699W": 0.92, "TP53_R175H": 0.10, "MLH1_V384D": 0.50}
+
+    def test_deploy_gate_passes(self) -> None:
+        """All metrics improve -> DEPLOY."""
+        current = self._base_metrics()
+        candidate = {"roc_auc": 0.92, "pr_auc": 0.87, "calibration_ece": 0.03}
+        benchmarks = self._base_benchmarks()
+
+        result = evaluate_deploy_gate(current, candidate, benchmarks, benchmarks)
+
+        assert result["decision"] == "DEPLOY"
+        assert result["metric_deltas"]["roc_auc"] > 0
+        assert result["metric_deltas"]["pr_auc"] > 0
+
+    def test_deploy_gate_regression(self) -> None:
+        """ROC-AUC drops >0.005 -> REJECT with 'roc_auc' in reason."""
+        current = self._base_metrics()
+        candidate = {"roc_auc": 0.89, "pr_auc": 0.87, "calibration_ece": 0.03}
+        benchmarks = self._base_benchmarks()
+
+        result = evaluate_deploy_gate(current, candidate, benchmarks, benchmarks)
+
+        assert result["decision"] == "REJECT"
+        assert "roc_auc" in result["reason"]
+
+    def test_deploy_gate_no_improvement(self) -> None:
+        """No metric improves >=0.01 -> REJECT with 'no meaningful improvement'."""
+        current = self._base_metrics()
+        # Tiny improvements, not enough to pass soft gate
+        candidate = {"roc_auc": 0.905, "pr_auc": 0.855, "calibration_ece": 0.045}
+        benchmarks = self._base_benchmarks()
+
+        result = evaluate_deploy_gate(current, candidate, benchmarks, benchmarks)
+
+        assert result["decision"] == "REJECT"
+        assert "no meaningful improvement" in result["reason"]
+
+    def test_deploy_gate_benchmark_flip(self) -> None:
+        """Score goes 0.10->0.90 (benign->pathogenic) -> REJECT with 'classification flip'."""
+        current = self._base_metrics()
+        candidate = {"roc_auc": 0.92, "pr_auc": 0.87, "calibration_ece": 0.03}
+        current_benchmarks = {"BRCA1_R1699W": 0.92, "TP53_R175H": 0.10}
+        candidate_benchmarks = {"BRCA1_R1699W": 0.92, "TP53_R175H": 0.90}
+
+        result = evaluate_deploy_gate(
+            current, candidate, current_benchmarks, candidate_benchmarks,
+        )
+
+        assert result["decision"] == "REJECT"
+        assert "classification flip" in result["reason"]
+
+    def test_deploy_gate_score_drift(self) -> None:
+        """Benchmark score drifts 0.25 -> REJECT with 'score drift'."""
+        current = self._base_metrics()
+        candidate = {"roc_auc": 0.92, "pr_auc": 0.87, "calibration_ece": 0.03}
+        current_benchmarks = {"MLH1_V384D": 0.50}
+        # Drift of 0.25 exceeds the 0.15 limit
+        candidate_benchmarks = {"MLH1_V384D": 0.75}
+
+        result = evaluate_deploy_gate(
+            current, candidate, current_benchmarks, candidate_benchmarks,
+        )
+
+        assert result["decision"] == "REJECT"
+        assert "score drift" in result["reason"]
+
+    def test_deploy_gate_ece_improvement_only(self) -> None:
+        """PR-AUC flat but ECE improves >=0.01 -> DEPLOY (soft gate passes)."""
+        current = self._base_metrics()
+        # PR-AUC unchanged, but ECE improves by 0.02 (lower is better)
+        candidate = {"roc_auc": 0.90, "pr_auc": 0.855, "calibration_ece": 0.03}
+        benchmarks = self._base_benchmarks()
+
+        result = evaluate_deploy_gate(current, candidate, benchmarks, benchmarks)
+
+        assert result["decision"] == "DEPLOY"
+
+    def test_deploy_gate_within_uncertain(self) -> None:
+        """Benchmark score changes within uncertain range (0.3->0.5) -> allowed."""
+        current = self._base_metrics()
+        candidate = {"roc_auc": 0.92, "pr_auc": 0.87, "calibration_ece": 0.03}
+        current_benchmarks = {"MLH1_V384D": 0.30}
+        # Drift of 0.10 is within the 0.15 limit, and both are "uncertain"
+        candidate_benchmarks = {"MLH1_V384D": 0.40}
+
+        result = evaluate_deploy_gate(
+            current, candidate, current_benchmarks, candidate_benchmarks,
+        )
+
+        # No classification flip (both uncertain), drift within limit
+        assert result["decision"] == "DEPLOY"
+
+
+class TestConcurrencyLock:
+    """Tests for filesystem-based PID concurrency lock."""
+
+    def test_acquire_and_release(self, tmp_path: Path) -> None:
+        """Acquire succeeds, file exists, release removes it."""
+        lock_file = tmp_path / "retrain.lock"
+
+        assert acquire_lock(lock_file) is True
+        assert lock_file.exists()
+
+        # Verify lock content
+        lock_data = json.loads(lock_file.read_text())
+        assert lock_data["pid"] == os.getpid()
+        assert "timestamp" in lock_data
+
+        release_lock(lock_file)
+        assert not lock_file.exists()
+
+    def test_lock_blocks_second_run(self, tmp_path: Path) -> None:
+        """Acquire twice with same PID -> second returns False."""
+        lock_file = tmp_path / "retrain.lock"
+
+        assert acquire_lock(lock_file) is True
+        # Second acquire should fail because our own PID is still alive
+        assert acquire_lock(lock_file) is False
+
+        release_lock(lock_file)
+
+    def test_stale_lock_cleaned(self, tmp_path: Path) -> None:
+        """Write lock with PID 99999999, acquire detects stale and succeeds."""
+        lock_file = tmp_path / "retrain.lock"
+
+        # Write a lock file with a PID that almost certainly doesn't exist
+        stale_lock = {
+            "pid": 99999999,
+            "timestamp": "2025-01-01T00:00:00+00:00",
+        }
+        lock_file.write_text(json.dumps(stale_lock))
+
+        # Acquire should detect the stale lock and succeed
+        assert acquire_lock(lock_file) is True
+
+        # Verify our PID is now in the lock
+        lock_data = json.loads(lock_file.read_text())
+        assert lock_data["pid"] == os.getpid()
+
+        release_lock(lock_file)
