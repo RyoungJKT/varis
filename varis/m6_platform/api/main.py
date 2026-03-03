@@ -7,6 +7,7 @@ Endpoints:
   GET  /api/v1/variants?q={query}       - Search variants
   GET  /api/v1/variants/stats           - Database statistics
   GET  /api/v1/jobs/{job_id}            - Job status
+  GET  /api/v1/evolution-log            - Evolution log events
 """
 
 import logging
@@ -212,6 +213,29 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
             return JobStatusResponse(**job)
         finally:
             session.close()
+
+    # === Evolution Log ===
+
+    @app.get("/api/v1/evolution-log")
+    def get_evolution_log_endpoint(limit: int = 50, event_type: str | None = None):
+        """Retrieve evolution log events.
+
+        Args:
+            limit: Maximum number of events to return (default 50).
+            event_type: Optional filter by event type (e.g. DEPLOY, REJECT).
+
+        Returns:
+            Dict with "events" list of log entry dicts.
+        """
+        try:
+            from varis.m7_evolution.evolution_log import init_evolution_log, get_log
+
+            evo_log_db = init_evolution_log(db_url)
+            events = get_log(evo_log_db, limit=limit, event_type=event_type)
+            return {"events": events}
+        except Exception as e:
+            logger.error("Failed to retrieve evolution log: %s", e)
+            return {"events": []}
 
     return app
 

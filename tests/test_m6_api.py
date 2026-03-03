@@ -261,3 +261,22 @@ class TestAPIEndpoints:
         )
         assert resp.status_code == 200
         assert "access-control-allow-origin" in resp.headers
+
+    def test_evolution_log_endpoint(self, client):
+        """GET /api/v1/evolution-log returns 200 with events list."""
+        resp = client.get("/api/v1/evolution-log")
+        assert resp.status_code == 200
+        assert "events" in resp.json()
+        assert isinstance(resp.json()["events"], list)
+
+    def test_evolution_log_with_limit(self, client):
+        """GET /api/v1/evolution-log?limit=5 respects limit parameter."""
+        resp = client.get("/api/v1/evolution-log?limit=5")
+        assert resp.status_code == 200
+        assert "events" in resp.json()
+
+    def test_evolution_log_with_event_type(self, client):
+        """GET /api/v1/evolution-log?event_type=DEPLOY filters by type."""
+        resp = client.get("/api/v1/evolution-log?event_type=DEPLOY")
+        assert resp.status_code == 200
+        assert "events" in resp.json()

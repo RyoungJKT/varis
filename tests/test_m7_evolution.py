@@ -1,4 +1,4 @@
-"""Tests for M7: Self-Evolution — Model Archive, Evolution Log, Deploy Gate, Lock, and Retrain Loop."""
+"""Tests for M7: Self-Evolution — Model Archive, Evolution Log, Deploy Gate, Lock, Retrain Loop, and CLI."""
 
 import json
 import os
@@ -587,3 +587,135 @@ class TestRetrainLoop:
 
         # Clean up the lock for other tests
         release_lock(lock_path)
+
+
+class TestCLI:
+    """Tests for the M7 CLI entry point (__main__.py)."""
+
+    def test_build_parser(self) -> None:
+        """Parser builds successfully with all subcommands."""
+        from varis.m7_evolution.__main__ import build_parser
+
+        parser = build_parser()
+        assert parser is not None
+
+        # Verify retrain subcommand parses
+        args = parser.parse_args(["retrain"])
+        assert args.command == "retrain"
+
+        # Verify rollback subcommand parses
+        args = parser.parse_args(["rollback", "--reason", "test"])
+        assert args.command == "rollback"
+        assert args.reason == "test"
+
+        # Verify status subcommand parses
+        args = parser.parse_args(["status"])
+        assert args.command == "status"
+
+        # Verify log subcommand parses with defaults
+        args = parser.parse_args(["log"])
+        assert args.command == "log"
+        assert args.limit == 20
+        assert args.type is None
+
+        # Verify log subcommand parses with options
+        args = parser.parse_args(["log", "--limit", "5", "--type", "DEPLOY"])
+        assert args.limit == 5
+        assert args.type == "DEPLOY"
+
+    def test_verbose_flag(self) -> None:
+        """Verbose flag is parsed correctly."""
+        from varis.m7_evolution.__main__ import build_parser
+
+        parser = build_parser()
+        args = parser.parse_args(["-v", "status"])
+        assert args.verbose is True
+
+        args = parser.parse_args(["status"])
+        assert args.verbose is False
+
+    def test_cmd_status(self, tmp_path: Path, capsys) -> None:
+        """Status command prints version info."""
+        from varis.m7_evolution.__main__ import cmd_status, build_parser
+
+        # Create an archive with one version
+        source = _create_fake_model_dir(tmp_path / "source")
+        archive_root = tmp_path / "archive_root"
+        archive_version(source, "v2026.03", {"roc_auc": 0.92}, archive_root)
+        deploy_version("v2026.03", archive_root)
+
+        parser = build_parser()
+        args = parser.parse_args(["--archive-root", str(archive_root), "status"])
+        cmd_status(args)
+
+        captured = capsys.readouterr()
+        assert "v2026.03" in captured.out
+        assert "production" in captured.out
+
+    def test_cmd_log(self, tmp_path: Path, capsys) -> None:
+        """Log command prints events."""
+        from varis.m7_evolution.__main__ import cmd_log, build_parser, _get_log_db
+        from varis.m7_evolution.evolution_log import init_evolution_log, log_event
+
+        db_url = f"sqlite:///{tmp_path}/test_cli.db"
+        log_db = init_evolution_log(db_url)
+        log_event(log_db, "DEPLOY", model_version="v2026.03", details={"roc_auc": 0.92})
+
+        parser = build_parser()
+        args = parser.parse_args(["log", "--limit", "10"])
+
+        with patch("varis.m7_evolution.__main__._get_log_db", return_value=log_db):
+            cmd_log(args)
+
+        captured = capsys.readouterr()
+        assert "DEPLOY" in captured.out
+        assert "v2026.03" in captured.out
+
+    def test_cmd_rollback(self, tmp_path: Path, capsys) -> None:
+        """Rollback command succeeds with two deployed versions."""
+        from varis.m7_evolution.__main__ import cmd_rollback, build_parser
+
+        archive_root = tmp_path / "archive_root"
+
+        source1 = _create_fake_model_dir(tmp_path / "source1")
+        source2 = _create_fake_model_dir(tmp_path / "source2")
+
+        archive_version(source1, "v2026.01", {"roc_auc": 0.88}, archive_root)
+        deploy_version("v2026.01", archive_root)
+        archive_version(source2, "v2026.02", {"roc_auc": 0.91}, archive_root)
+        deploy_version("v2026.02", archive_root)
+
+        parser = build_parser()
+        args = parser.parse_args([
+            "--archive-root", str(archive_root),
+            "rollback", "--reason", "test rollback",
+        ])
+        cmd_rollback(args)
+
+        captured = capsys.readouterr()
+        assert "Rollback successful" in captured.out
+
+        # Verify we're back to v2026.01
+        assert get_current_version(archive_root) == "v2026.01"
+
+
+class TestM7Run:
+    """Tests for the M7 module-level run() function."""
+
+    def test_run_function_exists(self) -> None:
+        """M7 has a run() function for pipeline integration."""
+        from varis.m7_evolution import run
+        assert callable(run)
+
+    def test_run_returns_dict_on_error(self) -> None:
+        """run() returns dict with completed=False on import error."""
+        from varis.m7_evolution import run
+
+        with patch(
+            "varis.m7_evolution.auto_retrain.run_retrain_loop",
+            side_effect=RuntimeError("test error"),
+        ):
+            result = run()
+
+        assert isinstance(result, dict)
+        assert result["completed"] is False
