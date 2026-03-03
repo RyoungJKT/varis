@@ -22,10 +22,10 @@ class TestSchemaV120:
     """Verify VariantRecord schema v1.2.0 field additions and removals."""
 
     def test_schema_version(self):
-        """Schema version should be 1.3.0."""
-        assert RECORD_SCHEMA_VERSION == "1.3.0"
+        """Schema version should be 1.4.0."""
+        assert RECORD_SCHEMA_VERSION == "1.4.0"
         record = create_variant_record("BRCA1", "p.Arg1699Trp")
-        assert record.record_schema_version == "1.3.0"
+        assert record.record_schema_version == "1.4.0"
 
     # --- New M2 fields ---
 

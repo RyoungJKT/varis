@@ -9,10 +9,10 @@ from varis.models.variant_record import (
 
 
 class TestSchemaV130:
-    """Verify schema v1.3.0 fields exist on VariantRecord."""
+    """Verify schema v1.4.0 fields exist on VariantRecord."""
 
-    def test_schema_version_is_1_3_0(self):
-        assert RECORD_SCHEMA_VERSION == "1.3.0"
+    def test_schema_version_is_1_4_0(self):
+        assert RECORD_SCHEMA_VERSION == "1.4.0"
 
     def test_new_msa_fields_exist(self):
         record = create_variant_record("BRCA1", "p.Arg1699Trp")

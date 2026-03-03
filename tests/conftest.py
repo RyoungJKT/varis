@@ -85,6 +85,6 @@ def fully_populated_record():
     record.model_agreement = "high"
     record.features_used = 15
     record.ensemble_version = "v1.2"
-    record.acmg_codes = ["PM1", "PP3", "PS3-proxy"]
+    record.evidence_tags = ["computational_support", "rarity_evidence", "energetics_support"]
     record.modules_completed = ["M1", "M2", "M3", "M4", "M5"]
     return record

@@ -30,7 +30,7 @@ import json
 # =============================================================================
 # SCHEMA VERSION — Increment on any field addition, removal, or type change
 # =============================================================================
-RECORD_SCHEMA_VERSION = "1.3.0"
+RECORD_SCHEMA_VERSION = "1.4.0"
 
 
 # =============================================================================
@@ -229,15 +229,16 @@ class VariantRecord:
     features_used: Optional[int] = None
 
     # =========================================================================
-    # ACMG EVIDENCE — Suggested clinical classification codes (populated by M5)
-    # NOTE: These are computational suggestions, not clinical adjudications.
+    # EVIDENCE TAGS — Computational evidence inspired by ACMG criteria (M5)
+    # NOTE: These are computational suggestions, NOT clinical adjudications.
+    # Each tag requires multiple independent signals to prevent circular reasoning.
     # =========================================================================
-    acmg_codes: Optional[list[str]] = None
-    acmg_pm1: Optional[bool] = None
-    acmg_pm5: Optional[bool] = None
-    acmg_pp3: Optional[bool] = None
-    acmg_pp2: Optional[bool] = None
-    acmg_ps3_proxy: Optional[bool] = None
+    evidence_tags: Optional[list[str]] = None
+    evidence_computational_support: Optional[bool] = None  # PP3-like: multi-signal
+    evidence_rarity: Optional[bool] = None                  # PM2-like: gnomAD rarity
+    evidence_energetics: Optional[bool] = None              # DDG-based, NOT PS3
+    evidence_domain_context: Optional[bool] = None          # PM1-like: critical domain
+    acmg_pm5: Optional[bool] = None                         # Keep: cross-ref to known pathogenic
 
     # =========================================================================
     # METADATA — Pipeline tracking

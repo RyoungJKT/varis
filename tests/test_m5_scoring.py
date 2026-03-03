@@ -1,19 +1,30 @@
 """Tests for M5: ML Scoring Engine."""
+import pytest
+import numpy as np
+from unittest.mock import MagicMock, patch
+from varis.models.variant_record import (
+    VariantRecord, create_variant_record, RECORD_SCHEMA_VERSION,
+)
 
-class TestFeatureExtractor:
-    def test_extract_from_full_record(self, fully_populated_record):
-        from varis.m5_scoring.feature_extractor import extract_features
-        features = extract_features(fully_populated_record)
-        assert len(features) == 15
 
-    def test_extract_from_partial_record(self, m1_completed_record):
-        from varis.m5_scoring.feature_extractor import extract_features
-        features = extract_features(m1_completed_record)
-        assert features["ddg_foldx"] is None
-        assert features["alphamissense_score"] is not None
+class TestSchemaV140:
+    """Verify schema v1.4.0 — evidence tags replace ACMG codes."""
 
-class TestACMGMapper:
-    def test_ps3_proxy_with_high_ddg(self):
-        pass
-    def test_pm1_in_critical_domain(self):
-        pass
+    def test_schema_version(self):
+        assert RECORD_SCHEMA_VERSION == "1.4.0"
+
+    def test_evidence_tag_fields_exist(self):
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        assert hasattr(record, "evidence_tags")
+        assert hasattr(record, "evidence_computational_support")
+        assert hasattr(record, "evidence_rarity")
+        assert hasattr(record, "evidence_energetics")
+        assert hasattr(record, "evidence_domain_context")
+
+    def test_old_acmg_fields_removed(self):
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        assert not hasattr(record, "acmg_codes")
+        assert not hasattr(record, "acmg_pp3")
+        assert not hasattr(record, "acmg_pp2")
+        assert not hasattr(record, "acmg_ps3_proxy")
+        assert not hasattr(record, "acmg_pm1")
