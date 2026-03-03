@@ -49,7 +49,7 @@ Every critical capability has a primary tool, a fallback, and a worst case:
 | Capability | Primary | Fallback 1 | Fallback 2 | Worst Case |
 |-----------|---------|-----------|-----------|------------|
 | 3D structure | AlphaFold DB | ESMFold | Swiss-Model | Skip structural features |
-| ΔΔG stability | FoldX | PyRosetta | DDGun | Skip ΔΔG, use other features |
+| ΔΔG stability | EvoEF2 | PyRosetta (optional) | DDGun | Skip ΔΔG, use other features |
 | Secondary structure | DSSP | mdtraj DSSP | BioPython | Assign from pLDDT |
 | Solvent accessibility | FreeSASA | DSSP SASA | BioPython | Estimate from depth |
 | Conservation | BLAST + Clustal | PSI-BLAST + MAFFT | ConSurf API | gnomAD frequency proxy |
@@ -209,12 +209,28 @@ When building auto-retrain (Loop 1), implement these governance safeguards:
 
 ## Licensing
 
-Varis's own code is MIT license. Two dependencies have separate license requirements:
-- **FoldX** (CRG Barcelona): Free academic license, non-redistributable. Cannot be bundled.
-- **PyRosetta** (RosettaCommons): Free academic license, non-redistributable. Cannot be bundled.
+### Code License
+Varis's own code is MIT license.
 
-The README, Dockerfile, and any installation docs must clearly state this. The fallback
-architecture means the pipeline works without either tool (reduced features, still functional).
+### ΔΔG Tool Licensing & Data Strategy
+- **EvoEF2** (MIT license): Primary ΔΔG tool. Fully open — no restrictions on computed data.
+- **PyRosetta** (RosettaCommons): Optional secondary ΔΔG tool. Free for non-commercial use,
+  non-redistributable. Cannot be bundled.
+- **FoldX** (CRG Barcelona): Not used. License too restrictive for open data publishing.
+
+### VarisDB Data License
+- **VarisDB computed data**: CC BY 4.0 (fully open) for all EvoEF2-computed values.
+- **PyRosetta-derived values**: If included, flagged separately in the database with
+  `ddg_source="pyrosetta"` so users know the provenance. These values carry the same
+  CC BY 4.0 license (the non-commercial restriction is on running the software, not
+  on publishing computed results — confirmed by PyRosetta license terms).
+- When both EvoEF2 and PyRosetta values are available, agreement between them increases
+  confidence. The `ddg_mean` field averages available methods.
+
+### Non-Redistributable Dependencies
+The README, Dockerfile, and any installation docs must clearly state that PyRosetta
+requires its own license. The fallback architecture means the pipeline works without
+it (EvoEF2 covers ΔΔG, reduced features if neither is available).
 
 ## Infrastructure Rules
 
