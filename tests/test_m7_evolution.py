@@ -1,4 +1,4 @@
-"""Tests for M7: Self-Evolution — Model Archive."""
+"""Tests for M7: Self-Evolution — Model Archive and Evolution Log."""
 
 import json
 import pytest
@@ -234,3 +234,90 @@ class TestModelArchive:
         versions = list_versions(archive_root)
         version_names = [v["version"] for v in versions]
         assert "v2026.02" in version_names  # Production preserved
+
+
+class TestEvolutionLog:
+    """Tests for SQLAlchemy-based evolution log persistence."""
+
+    @pytest.fixture
+    def log_db(self, tmp_path):
+        """Create a temporary SQLite-backed evolution log session factory."""
+        from varis.m7_evolution.evolution_log import init_evolution_log
+
+        db_url = f"sqlite:///{tmp_path}/test_evo.db"
+        return init_evolution_log(db_url)
+
+    def test_log_event(self, log_db) -> None:
+        """Log a DEPLOY event and verify it appears in get_log."""
+        from varis.m7_evolution.evolution_log import get_log, log_event
+
+        log_event(log_db, "DEPLOY", model_version="v2026.03", details={"roc_auc": 0.87})
+        events = get_log(log_db)
+        assert len(events) == 1
+        assert events[0]["event_type"] == "DEPLOY"
+        assert events[0]["model_version"] == "v2026.03"
+
+    def test_get_log_filtered(self, log_db) -> None:
+        """Filter events by type: 2 DEPLOYs and 1 REJECT."""
+        from varis.m7_evolution.evolution_log import get_log, log_event
+
+        log_event(log_db, "DEPLOY", model_version="v2026.03")
+        log_event(log_db, "REJECT", model_version="v2026.04")
+        log_event(log_db, "DEPLOY", model_version="v2026.05")
+        assert len(get_log(log_db, event_type="DEPLOY")) == 2
+        assert len(get_log(log_db, event_type="REJECT")) == 1
+
+    def test_log_event_with_details(self, log_db) -> None:
+        """Verify details dict is round-tripped through JSON serialization."""
+        from varis.m7_evolution.evolution_log import get_log, log_event
+
+        details = {"old_roc_auc": 0.85, "new_roc_auc": 0.87, "delta": 0.02}
+        log_event(log_db, "DEPLOY", model_version="v2026.03", details=details)
+        events = get_log(log_db)
+        assert events[0]["details"]["delta"] == 0.02
+
+    def test_get_current_model_version(self, log_db) -> None:
+        """Most recent DEPLOY event determines current model version."""
+        from varis.m7_evolution.evolution_log import get_current_model_version, log_event
+
+        log_event(log_db, "DEPLOY", model_version="v2026.03")
+        log_event(log_db, "DEPLOY", model_version="v2026.04")
+        assert get_current_model_version(log_db) == "v2026.04"
+
+    def test_get_current_model_version_no_deploys(self, log_db) -> None:
+        """No DEPLOY events returns None."""
+        from varis.m7_evolution.evolution_log import get_current_model_version, log_event
+
+        log_event(log_db, "REJECT", model_version="v2026.03")
+        assert get_current_model_version(log_db) is None
+
+    def test_log_event_returns_dict(self, log_db) -> None:
+        """log_event returns a dict with all expected keys."""
+        from varis.m7_evolution.evolution_log import log_event
+
+        result = log_event(log_db, "RETRAIN_START", model_version="v2026.03")
+        assert isinstance(result, dict)
+        assert "id" in result
+        assert result["event_type"] == "RETRAIN_START"
+        assert result["model_version"] == "v2026.03"
+        assert result["timestamp"] is not None
+
+    def test_get_log_limit(self, log_db) -> None:
+        """Verify get_log respects the limit parameter."""
+        from varis.m7_evolution.evolution_log import get_log, log_event
+
+        for i in range(10):
+            log_event(log_db, "ERROR", details={"index": i})
+        events = get_log(log_db, limit=3)
+        assert len(events) == 3
+
+    def test_get_log_ordering(self, log_db) -> None:
+        """Events are returned newest-first (descending timestamp)."""
+        from varis.m7_evolution.evolution_log import get_log, log_event
+
+        log_event(log_db, "DEPLOY", model_version="v2026.01")
+        log_event(log_db, "DEPLOY", model_version="v2026.02")
+        log_event(log_db, "DEPLOY", model_version="v2026.03")
+        events = get_log(log_db)
+        assert events[0]["model_version"] == "v2026.03"
+        assert events[2]["model_version"] == "v2026.01"
