@@ -94,3 +94,29 @@ class TestDatabase:
         save_variant_record(db_session, fully_populated_record)
         assert variant_exists(db_session, fully_populated_record.variant_id) is True
         assert variant_exists(db_session, "NONEXISTENT") is False
+
+
+class TestValidation:
+    """Tests for input validation."""
+
+    def test_valid_hgvs(self):
+        from varis.m6_platform.api.validation import validate_variant_input
+        result = validate_variant_input("BRCA1", "p.Arg1699Trp")
+        assert result["valid"] is True
+
+    def test_security_length_cap(self):
+        from varis.m6_platform.api.validation import validate_variant_input
+        result = validate_variant_input("A" * 300, "p.Arg1699Trp")
+        assert result["valid"] is False
+        assert "length" in result["error"].lower()
+
+    def test_security_bad_chars(self):
+        from varis.m6_platform.api.validation import validate_variant_input
+        result = validate_variant_input("BRCA1; DROP TABLE", "p.Arg1699Trp")
+        assert result["valid"] is False
+
+    def test_friendly_error_message(self):
+        from varis.m6_platform.api.validation import validate_variant_input
+        result = validate_variant_input("BRCA1", "invalid_format")
+        assert result["valid"] is False
+        assert "Expected" in result["error"]
