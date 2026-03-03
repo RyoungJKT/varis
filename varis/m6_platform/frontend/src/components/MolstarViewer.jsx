@@ -33,9 +33,12 @@ export default function MolstarViewer({ structure }) {
       viewerRef.current = viewerInstance;
 
       const options = {
-        hideControls: true,
         bgColor: { r: 249, g: 250, b: 251 },
         alphafoldView: source === "alphafold",
+        hideControls: true,
+        hideCanvasControls: ["selection", "animation", "controlToggle", "controlInfo"],
+        landscape: true,
+        reactive: true,
       };
 
       // For AlphaFold structures, use pdbe-molstar's native AlphaFold support
@@ -49,6 +52,18 @@ export default function MolstarViewer({ structure }) {
       }
 
       viewerInstance.render(containerRef.current, options);
+
+      // Give the viewer time to initialize then trigger a resize
+      setTimeout(() => {
+        if (!cancelled && viewerRef.current) {
+          try {
+            viewerRef.current.canvas?.handleResize();
+          } catch {
+            // Resize not available in this version
+          }
+        }
+      }, 500);
+
       setLoaded(true);
     }
 
