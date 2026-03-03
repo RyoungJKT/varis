@@ -30,7 +30,7 @@ import json
 # =============================================================================
 # SCHEMA VERSION — Increment on any field addition, removal, or type change
 # =============================================================================
-RECORD_SCHEMA_VERSION = "1.2.0"
+RECORD_SCHEMA_VERSION = "1.3.0"
 
 
 # =============================================================================
@@ -56,6 +56,7 @@ class NullReason:
     UPSTREAM_DEPENDENCY_FAILED = "upstream_dependency_failed"
     ISOFORM_MISMATCH = "isoform_mismatch"
     VALIDATION_FAILED = "validation_failed"
+    INSUFFICIENT_DATA = "insufficient_data"
 
 
 @dataclass
@@ -189,6 +190,9 @@ class VariantRecord:
     num_orthologs: Optional[int] = None
     position_entropy: Optional[float] = None
     conserved_across_mammals: Optional[bool] = None
+    msa_num_sequences: Optional[int] = None
+    msa_gap_fraction_at_site: Optional[float] = None
+    msa_column_index: Optional[int] = None
 
     # =========================================================================
     # FEATURE AVAILABILITY — Explicit flags for ML model (populated by M3/M4)

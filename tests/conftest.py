@@ -72,6 +72,9 @@ def fully_populated_record():
     record.conservation_method = "clustal_omega"
     record.num_orthologs = 45
     record.conserved_across_mammals = True
+    record.msa_num_sequences = 46
+    record.msa_gap_fraction_at_site = 0.02
+    record.msa_column_index = 1699
     record.score_ensemble = 0.91
     record.score_catboost = 0.93
     record.score_xgboost = 0.90
