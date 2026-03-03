@@ -1,10 +1,19 @@
 """Tests for M2: Structure Retrieval and Preparation."""
 
+import json
+
+import pytest
+from Bio.PDB import PDBParser
+
+from varis.config import STRUCTURES_DIR
+from varis.m2_structure.structure_validator import validate_structure
 from varis.models.variant_record import (
     VariantRecord,
     create_variant_record,
     RECORD_SCHEMA_VERSION,
 )
+
+BRCA1_PDB = STRUCTURES_DIR / "AF-P38398-F1-model_v6.pdb"
 
 
 class TestSchemaV120:
@@ -169,3 +178,103 @@ class TestSchemaV120:
         assert restored.packing_density == 0.72
         assert restored.domain_start == 1646
         assert restored.domain_end == 1736
+
+
+class TestStructureValidator:
+    """Tests for structure_validator.validate_structure()."""
+
+    def test_structure_sanity_fixture(self):
+        """Parse the real BRCA1 PDB with BioPython and verify basic properties."""
+        assert BRCA1_PDB.exists(), f"PDB fixture missing: {BRCA1_PDB}"
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("brca1", str(BRCA1_PDB))
+        model = structure[0]
+        chain = next(iter(model.get_chains()))
+        standard_residues = [r for r in chain.get_residues() if r.id[0] == " "]
+        assert len(standard_residues) >= 1699, (
+            f"Expected >=1699 standard residues, got {len(standard_residues)}"
+        )
+        # Numbering starts at 1
+        first_resid = standard_residues[0].id[1]
+        assert first_resid == 1, f"Expected numbering to start at 1, got {first_resid}"
+
+    def test_validate_existing_pdb(self, m1_completed_record):
+        """Validate the real BRCA1 PDB — mutation site should be present."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = validate_structure(m1_completed_record)
+        assert result.mutation_site_present is True
+        assert result.numbering_scheme == "uniprot_canonical"
+
+    def test_validate_missing_residue(self, m1_completed_record):
+        """Position 99999 cannot exist — mutation_site_present should be False."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        m1_completed_record.residue_position = 99999
+        result = validate_structure(m1_completed_record)
+        assert result.mutation_site_present is False
+        assert "mutation_site_present" in result.null_reasons
+
+    def test_site_out_of_range(self, m1_completed_record):
+        """Position 5000 is beyond BRCA1 length — should not be found."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        m1_completed_record.residue_position = 5000
+        result = validate_structure(m1_completed_record)
+        assert result.mutation_site_present is False
+
+    def test_plddt_only_for_predicted(self, m1_completed_record):
+        """Experimental PDB structures should not have pLDDT extracted."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "pdb"
+        result = validate_structure(m1_completed_record)
+        assert result.plddt_available is False
+        assert result.mutation_site_plddt is None
+
+    def test_plddt_range_valid(self, m1_completed_record):
+        """pLDDT values from AlphaFold should be in [0, 100]."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = validate_structure(m1_completed_record)
+        assert result.mutation_site_plddt is not None
+        assert 0 <= result.mutation_site_plddt <= 100
+        assert result.plddt_mean is not None
+        assert 0 <= result.plddt_mean <= 100
+
+    def test_plddt_site_bfactor_value(self, m1_completed_record):
+        """Validator pLDDT should match the raw B-factor of residue 1699 CA."""
+        # Get expected value directly from BioPython
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("brca1", str(BRCA1_PDB))
+        model = structure[0]
+        chain = next(iter(model.get_chains()))
+        residue = chain[(" ", 1699, " ")]
+        expected_bfactor = residue["CA"].get_bfactor()
+
+        # Get value from validator
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = validate_structure(m1_completed_record)
+
+        assert result.mutation_site_plddt == pytest.approx(expected_bfactor, abs=0.01)
+
+    def test_structure_quality_summary(self, m1_completed_record):
+        """Quality summary should contain the required keys."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = validate_structure(m1_completed_record)
+        assert result.structure_quality_summary is not None
+        summary = json.loads(result.structure_quality_summary)
+        assert "plddt_mean" in summary
+        assert "plddt_site" in summary
+        assert "percent_low_confidence" in summary
+
+    def test_pdb_hash_computed(self, m1_completed_record):
+        """PDB hash should be a 64-character hex string (SHA-256)."""
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = validate_structure(m1_completed_record)
+        assert result.pdb_hash is not None
+        assert len(result.pdb_hash) == 64
+        # Verify it's valid hex
+        int(result.pdb_hash, 16)
