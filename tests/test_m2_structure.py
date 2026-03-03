@@ -390,3 +390,46 @@ class TestPDBFixer:
         chain = next(iter(structure[0].get_chains()))
         residue_ids = {r.id[1] for r in chain.get_residues() if r.id[0] == " "}
         assert 1699 in residue_ids
+
+
+class TestM2Integration:
+    """Integration tests for the full M2 orchestrator."""
+
+    def test_m2_full_pipeline_brca1(self, m1_completed_record):
+        """Full M2 on BRCA1 AlphaFold structure."""
+        from varis.m2_structure import run
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = run(m1_completed_record)
+        assert "M2" in result.modules_completed
+        assert result.mutation_site_present is True
+        assert result.pdb_hash is not None
+        assert result.numbering_scheme == "uniprot_canonical"
+        assert result.plddt_available is True
+        assert result.mutation_site_plddt is not None
+        assert 0.0 <= result.mutation_site_plddt <= 100.0
+
+    def test_m2_no_structure(self, m1_completed_record):
+        """M2 with no structure -> marks failed."""
+        from varis.m2_structure import run
+
+        m1_completed_record.pdb_path = None
+        m1_completed_record.structure_source = None
+        m1_completed_record.protein_sequence = "M" * 500  # Too long for ESMFold
+        result = run(m1_completed_record)
+        assert "M2" in result.modules_failed
+
+    def test_m2_golden_record_keys(self, m1_completed_record):
+        """Verify all expected keys are set after M2."""
+        from varis.m2_structure import run
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.structure_source = "alphafold"
+        result = run(m1_completed_record)
+        expected_keys = [
+            "mutation_site_present", "pdb_hash", "numbering_scheme",
+            "preparation_steps", "plddt_available",
+        ]
+        for key in expected_keys:
+            assert getattr(result, key) is not None, f"{key} should not be None"
