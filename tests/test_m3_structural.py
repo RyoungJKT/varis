@@ -114,6 +114,29 @@ class TestContacts:
         assert result.contacts_available is False
 
 
+class TestFoldXStub:
+    """Tests for foldx_wrapper.py — ΔΔG stub."""
+
+    def test_foldx_no_binary(self, m1_completed_record):
+        """FoldX not installed → ddg_available=False, reason tool_missing."""
+        from varis.m3_structural_analysis.foldx_wrapper import run_foldx
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        result = run_foldx(m1_completed_record)
+        assert result.ddg_available is False
+        assert result.ddg_missing_reason == "tool_missing"
+
+
+class TestPyRosettaStub:
+    """Tests for pyrosetta_wrapper.py — ΔΔG stub."""
+
+    def test_pyrosetta_not_installed(self, m1_completed_record):
+        """PyRosetta not installed → ddg_pyrosetta is None."""
+        from varis.m3_structural_analysis.pyrosetta_wrapper import run_pyrosetta
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        result = run_pyrosetta(m1_completed_record)
+        assert result.ddg_pyrosetta is None
+
+
 class TestInterPro:
     """Tests for interpro_client.py — domain identification via InterPro API."""
 
