@@ -242,3 +242,69 @@ class TestSHAPExplainer:
         assert isinstance(importance, dict)
         assert "f1" in importance
         assert all(v >= 0 for v in importance.values())
+
+
+class TestEvidenceMapper:
+    """Tests for evidence_mapper.py — multi-signal evidence tags."""
+
+    def test_computational_support_multi_signal(self, fully_populated_record):
+        """Requires conservation > 0.9 AND (buried OR high score)."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.conservation_score = 0.95
+        fully_populated_record.burial_category = "core"
+        fully_populated_record.score_ensemble = 0.85
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_computational_support is True
+        assert "computational_support" in result.evidence_tags
+
+    def test_computational_support_needs_multiple_signals(self, fully_populated_record):
+        """Score alone is not enough — needs conservation too."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.conservation_score = 0.5  # Low conservation
+        fully_populated_record.score_ensemble = 0.95  # High score
+        fully_populated_record.burial_category = "surface"
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_computational_support is False
+
+    def test_rarity_evidence(self, fully_populated_record):
+        """gnomAD < 0.0001 triggers rarity."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.gnomad_frequency = 0.00003
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_rarity is True
+
+    def test_rarity_absent_from_gnomad(self, fully_populated_record):
+        """Absent from gnomAD (None) triggers rarity."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.gnomad_frequency = None
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_rarity is True
+
+    def test_energetics_support(self, fully_populated_record):
+        """DDG > 2.0 triggers energetics."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.ddg_mean = 3.5
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_energetics is True
+
+    def test_energetics_no_ddg(self, fully_populated_record):
+        """No DDG available → energetics is False, not error."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.ddg_mean = None
+        fully_populated_record.ddg_available = False
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_energetics is False
+
+    def test_domain_context(self, fully_populated_record):
+        """Critical domain triggers domain context."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.domain_criticality = "critical"
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_domain_context is True
+
+    def test_domain_context_peripheral(self, fully_populated_record):
+        """Peripheral domain does NOT trigger domain context."""
+        from varis.m5_scoring.evidence_mapper import map_evidence_tags
+        fully_populated_record.domain_criticality = "peripheral"
+        result = map_evidence_tags(fully_populated_record)
+        assert result.evidence_domain_context is False
