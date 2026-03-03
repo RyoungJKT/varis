@@ -1,15 +1,7 @@
-{
-  "_description": "Fixed benchmark variant set for regression testing. NEVER include these in training data.",
-  "_purpose": "Every candidate model from auto-retrain must be evaluated against these variants. Any unexpected reclassification triggers rejection.",
-  "_minimum_count": 50,
-  "_last_updated": null,
-  "variants": [
-    {
-      "gene": "BRCA1",
-      "hgvs": "p.Arg1699Trp",
-      "expected_classification": "likely_pathogenic",
-      "expected_acmg_codes": ["PM1", "PP3", "PS3-proxy"],
-      "notes": "Canonical validation variant. BRCT domain, deeply buried, high ΔΔG."
-    }
-  ]
-}
+[
+  {"gene": "BRCA1", "hgvs": "p.Arg1699Trp", "expected": "likely_pathogenic"},
+  {"gene": "BRCA1", "hgvs": "p.Lys1183Arg", "expected": "likely_benign"},
+  {"gene": "TP53", "hgvs": "p.Arg175His", "expected": "likely_pathogenic"},
+  {"gene": "BRCA2", "hgvs": "p.Asp2723His", "expected": "likely_pathogenic"},
+  {"gene": "CFTR", "hgvs": "p.Gly551Asp", "expected": "likely_pathogenic"}
+]

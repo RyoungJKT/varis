@@ -423,3 +423,47 @@ class TestM5Orchestrator:
         from varis.m5_scoring import run
         result = run(empty_record)
         assert "M5" in (result.modules_failed or [])
+
+
+class TestBenchmarks:
+    """Tests for benchmarks.py — regression testing and training manifest."""
+
+    def test_benchmark_file_format(self):
+        """Benchmark file is valid JSON list of variant dicts."""
+        import json
+        with open("tests/benchmark_variants.json") as f:
+            data = json.load(f)
+        assert isinstance(data, list)
+        assert len(data) >= 5
+        for v in data:
+            assert "gene" in v
+            assert "hgvs" in v
+            assert "expected" in v
+
+    def test_run_benchmarks_returns_results(self, tmp_path):
+        """run_benchmarks returns dict with per-variant results."""
+        from varis.m5_scoring.benchmarks import run_benchmarks
+        from varis.m5_scoring.ensemble import train_ensemble
+        import pandas as pd
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        results = run_benchmarks(tmp_path, "tests/benchmark_variants.json")
+        assert isinstance(results, dict)
+        assert "variants" in results
+
+    def test_save_training_manifest(self, tmp_path):
+        """Training manifest writes valid JSON."""
+        from varis.m5_scoring.benchmarks import save_training_manifest
+        import json
+        metrics = {"roc_auc": 0.85, "pr_auc": 0.80}
+        metadata = {"n_samples": 1000, "n_features": 15}
+        save_training_manifest(tmp_path, metrics, metadata)
+        manifest_path = tmp_path / "training_manifest.json"
+        assert manifest_path.exists()
+        with open(manifest_path) as f:
+            data = json.load(f)
+        assert data["metrics"]["roc_auc"] == 0.85
+        assert data["metadata"]["n_samples"] == 1000
