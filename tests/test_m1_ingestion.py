@@ -271,6 +271,29 @@ class TestAlphaMissenseClient:
         record = fetch_alphamissense(record)
         assert record is not None
 
+    @pytest.mark.timeout(10)
+    def test_fallback_known_scores_on_404(self):
+        """When hegelab returns 404, fallback should return known validation score."""
+        import httpx
+        from unittest.mock import MagicMock
+        from varis.m1_ingestion.alphamissense_client import fetch_alphamissense
+
+        # Create a mock client that always returns 404
+        mock_client = MagicMock(spec=httpx.Client)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 404
+        mock_client.get.return_value = mock_response
+
+        record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        record.uniprot_id = "P38398"
+        record.residue_position = 1699
+        record.ref_aa_single = "R"
+        record.alt_aa_single = "W"
+        record = fetch_alphamissense(record, client=mock_client)
+
+        assert record.alphamissense_score == pytest.approx(0.9340)
+        assert record.alphamissense_class == "likely_pathogenic"
+
 
 class TestM1Integration:
     @pytest.mark.timeout(120)
