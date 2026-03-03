@@ -3,6 +3,10 @@ import { useParams, Link } from "react-router-dom";
 import { getInvestigation } from "../api/client";
 import PredictionBadge from "../components/PredictionBadge";
 import ProvenanceFooter from "../components/ProvenanceFooter";
+import ReliabilityStrip from "../components/ReliabilityStrip";
+import ShapWaterfall from "../components/ShapWaterfall";
+import EvidencePanel from "../components/EvidencePanel";
+import MolstarViewer from "../components/MolstarViewer";
 
 export default function InvestigationPage() {
   const { variantId } = useParams();
@@ -40,6 +44,12 @@ export default function InvestigationPage() {
 
   if (!data) return null;
 
+  // Extract evidence tags from features or provenance
+  const evidenceTags = data.features
+    ?.filter((f) => f.evidence_tag)
+    .map((f) => f.evidence_tag)
+    .filter((v, i, a) => a.indexOf(v) === i) || [];
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Header */}
@@ -62,10 +72,10 @@ export default function InvestigationPage() {
 
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: 3D viewer placeholder */}
+        {/* Left: 3D viewer */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div id="molstar-container" className="h-96 bg-gray-100 flex items-center justify-center">
-            <p className="text-gray-400 text-sm">3D Viewer (Mol*)</p>
+          <div className="h-96">
+            <MolstarViewer structure={data.structure} />
           </div>
         </div>
 
@@ -74,14 +84,17 @@ export default function InvestigationPage() {
           {/* Prediction */}
           <PredictionBadge prediction={data.prediction} />
 
-          {/* Reliability Strip placeholder */}
-          <div id="reliability-strip" />
+          {/* Reliability Strip */}
+          <ReliabilityStrip structure={data.structure} features={data.features} />
 
-          {/* SHAP Waterfall placeholder */}
-          <div id="shap-waterfall" />
+          {/* SHAP Waterfall */}
+          <ShapWaterfall
+            explanation={data.explanation}
+            score={data.prediction?.score}
+          />
 
-          {/* Evidence Panel placeholder */}
-          <div id="evidence-panel" />
+          {/* Evidence Panel */}
+          <EvidencePanel evidenceTags={evidenceTags} />
         </div>
       </div>
 

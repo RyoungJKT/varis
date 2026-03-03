@@ -105,3 +105,12 @@ AA_THREE_TO_ONE = {
 }
 
 AA_ONE_TO_THREE = {v: k for k, v in AA_THREE_TO_ONE.items()}
+
+# =========================================================================
+# M6 PLATFORM SETTINGS — VarisDB web platform
+# =========================================================================
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/varis.db")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+MAX_INVESTIGATION_WORKERS = int(os.getenv("MAX_INVESTIGATION_WORKERS", "2"))
+JOB_TIMEOUT_SECONDS = int(os.getenv("JOB_TIMEOUT_SECONDS", "600"))
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
