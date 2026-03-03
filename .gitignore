@@ -42,3 +42,6 @@ htmlcov/
 
 # CatBoost training artifacts
 catboost_info/
+
+# SQLite database
+data/*.db
