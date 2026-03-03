@@ -130,3 +130,59 @@ class TestConservationScorer:
         m1_completed_record.ref_aa_single = "R"
         result = score_conservation(m1_completed_record, alignment)
         assert result.conserved_across_mammals is None
+
+
+class TestUniProtOrthologs:
+    """Tests for uniprot_orthologs.py — fetch ortholog sequences."""
+
+    def test_fetch_orthologs_success(self, m1_completed_record):
+        """Mocked: returns sequences with taxonomy."""
+        from varis.m4_conservation.uniprot_orthologs import fetch_orthologs
+        # Build mock FASTA with 15 sequences
+        fasta_entries = []
+        taxon_ids = [9606, 9598, 9544, 9615, 9913, 9823, 10090, 10116,
+                     9986, 9685, 7955, 8364, 9031, 28377, 13616]
+        for i, taxon in enumerate(taxon_ids):
+            fasta_entries.append(f">sp|P{i:05d}|ORTH{i} OS=Species OX={taxon}\nMKRST\n")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "".join(fasta_entries)
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        record, orthologs = fetch_orthologs(m1_completed_record, client=mock_client)
+        assert orthologs is not None
+        assert len(orthologs["sequences"]) >= 10
+        assert "query_id" in orthologs
+        assert "taxonomy" in orthologs
+
+    def test_fetch_orthologs_too_few(self, m1_completed_record):
+        """<10 sequences -> returns None."""
+        from varis.m4_conservation.uniprot_orthologs import fetch_orthologs
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = ">sp|P00001|ORTH1 OX=9606\nMKRST\n"
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        record, orthologs = fetch_orthologs(m1_completed_record, client=mock_client)
+        assert orthologs is None
+
+    def test_fetch_orthologs_no_uniprot(self, m1_completed_record):
+        """No uniprot_id -> skip."""
+        from varis.m4_conservation.uniprot_orthologs import fetch_orthologs
+        m1_completed_record.uniprot_id = None
+        record, orthologs = fetch_orthologs(m1_completed_record)
+        assert orthologs is None
+
+    def test_fetch_orthologs_caps_at_100(self, m1_completed_record):
+        """Max 100 orthologs returned (plus query)."""
+        from varis.m4_conservation.uniprot_orthologs import fetch_orthologs
+        fasta = "".join(f">sp|P{i:05d}|ORTH{i} OX={9606+i}\nMKRST\n" for i in range(150))
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = fasta
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        record, orthologs = fetch_orthologs(m1_completed_record, client=mock_client)
+        assert orthologs is not None
+        # 100 orthologs + 1 query
+        assert len(orthologs["sequences"]) <= 101
