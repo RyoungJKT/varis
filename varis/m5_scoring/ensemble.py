@@ -132,6 +132,12 @@ def train_ensemble(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Convert object columns to numeric (None → NaN for XGBoost/LightGBM)
+    X = X.copy()
+    for col in X.columns:
+        if X[col].dtype == object:
+            X[col] = pd.to_numeric(X[col], errors="coerce")
+
     # Split: 80% train, 20% calibration
     X_train, X_cal, y_train, y_cal = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y,
@@ -235,6 +241,11 @@ def predict_from_models(models: dict, features_dict: dict) -> dict:
     columns = models["feature_columns"]
     values = [features_dict.get(col) for col in columns]
     X = pd.DataFrame([values], columns=columns)
+
+    # Convert object columns to numeric (None → NaN for XGBoost/LightGBM)
+    for col in X.columns:
+        if X[col].dtype == object:
+            X[col] = pd.to_numeric(X[col], errors="coerce")
 
     # Individual model predictions
     cb_prob = float(models["catboost"].predict_proba(X)[0, 1])
