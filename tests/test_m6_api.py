@@ -280,3 +280,42 @@ class TestAPIEndpoints:
         resp = client.get("/api/v1/evolution-log?event_type=DEPLOY")
         assert resp.status_code == 200
         assert "events" in resp.json()
+
+    def test_clinvar_submission_eligible(self, client, fully_populated_record):
+        """GET /api/v1/clinvar-submissions/{id} returns eligible=True for qualifying record."""
+        from varis.m6_platform.api.database import save_variant_record
+        session = client.app.state.session_factory()
+        try:
+            save_variant_record(session, fully_populated_record)
+        finally:
+            session.close()
+
+        resp = client.get(f"/api/v1/clinvar-submissions/{fully_populated_record.variant_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["eligible"] is True
+        assert data["variant_id"] == fully_populated_record.variant_id
+        assert data["submission"] is not None
+        assert "clinical_significance" in data["submission"]
+
+    def test_clinvar_submission_not_eligible(self, client, m1_completed_record):
+        """GET /api/v1/clinvar-submissions/{id} returns eligible=False for uncertain record."""
+        from varis.m6_platform.api.database import save_variant_record
+        # m1_completed_record has no M5 completed and no classification — should not be eligible
+        session = client.app.state.session_factory()
+        try:
+            save_variant_record(session, m1_completed_record)
+        finally:
+            session.close()
+
+        resp = client.get(f"/api/v1/clinvar-submissions/{m1_completed_record.variant_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["eligible"] is False
+        assert data["variant_id"] == m1_completed_record.variant_id
+        assert data["submission"] is None
+
+    def test_clinvar_submission_not_found(self, client):
+        """GET /api/v1/clinvar-submissions/{id} returns 404 for unknown variant."""
+        resp = client.get("/api/v1/clinvar-submissions/NONEXISTENT")
+        assert resp.status_code == 404

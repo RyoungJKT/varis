@@ -7,6 +7,7 @@ Endpoints:
   GET  /api/v1/variants?q={query}       - Search variants
   GET  /api/v1/variants/stats           - Database statistics
   GET  /api/v1/jobs/{job_id}            - Job status
+  GET  /api/v1/clinvar-submissions/{id} - ClinVar submission preview
   GET  /api/v1/evolution-log            - Evolution log events
 """
 
@@ -92,6 +93,8 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         description="Variant structural investigation database",
         lifespan=lifespan,
     )
+
+    app.state.session_factory = session_factory
 
     app.add_middleware(
         CORSMiddleware,
@@ -211,6 +214,42 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
             if job is None:
                 raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
             return JobStatusResponse(**job)
+        finally:
+            session.close()
+
+    # === ClinVar Submission Formatting ===
+
+    @app.get("/api/v1/clinvar-submissions/{variant_id}")
+    def format_clinvar_submission_endpoint(variant_id: str):
+        """Format a variant's evidence for ClinVar submission.
+
+        Returns the formatted submission payload for review. Does not
+        actually submit to ClinVar.
+
+        Args:
+            variant_id: The variant identifier.
+
+        Returns:
+            Dict with eligible (bool), variant_id, and submission (dict or None).
+        """
+        session = session_factory()
+        try:
+            record_dict = get_variant_record(session, variant_id)
+            if record_dict is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Variant '{variant_id}' not found",
+                )
+            record = VariantRecord.from_dict(record_dict)
+
+            from varis.m6_platform.api.clinvar_submitter import format_clinvar_submission
+            submission = format_clinvar_submission(record)
+
+            return {
+                "eligible": submission is not None,
+                "variant_id": variant_id,
+                "submission": submission,
+            }
         finally:
             session.close()
 
