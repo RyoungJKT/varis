@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def run(variant_record):
     """Execute M4: evolutionary conservation analysis. Independent of M2/M3."""
     from varis.m4_conservation.blast_client import run_blast
-    from varis.m4_conservation.alignment import run_alignment
+    from varis.m4_conservation.clustal_client import run_alignment
     from varis.m4_conservation.conservation_scorer import score_conservation
     from varis.m4_conservation.consurf_fallback import fetch_consurf
 

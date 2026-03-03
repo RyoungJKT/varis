@@ -186,3 +186,73 @@ class TestUniProtOrthologs:
         assert orthologs is not None
         # 100 orthologs + 1 query
         assert len(orthologs["sequences"]) <= 101
+
+
+class TestClustalClient:
+    """Tests for clustal_client.py — EBI Clustal Omega API."""
+
+    def test_clustal_alignment(self, m1_completed_record):
+        """Mocked: submit + poll returns valid alignment."""
+        from varis.m4_conservation.clustal_client import run_alignment
+        orthologs = {
+            "sequences": {
+                "query": "MKRST",
+                "orth1": "MKRST",
+                "orth2": "MKRAT",
+            },
+            "query_id": "query",
+            "taxonomy": {"orth1": 9606, "orth2": 10090},
+        }
+        # Mock submit (POST -> job ID)
+        mock_submit = MagicMock()
+        mock_submit.status_code = 200
+        mock_submit.text = "clustalo-R20260303-123456"
+        # Mock status (GET -> FINISHED)
+        mock_status = MagicMock()
+        mock_status.status_code = 200
+        mock_status.text = "FINISHED"
+        # Mock result (GET -> aligned FASTA)
+        mock_result = MagicMock()
+        mock_result.status_code = 200
+        mock_result.text = ">query\nMKRST\n>orth1\nMKRST\n>orth2\nMKRAT\n"
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_submit
+        mock_client.get.side_effect = [mock_status, mock_result]
+
+        record, alignment = run_alignment(m1_completed_record, orthologs, client=mock_client)
+        assert alignment is not None
+        assert "sequences" in alignment
+        assert len(alignment["sequences"]) == 3
+        assert alignment["taxonomy"] == {"orth1": 9606, "orth2": 10090}
+
+    def test_clustal_timeout(self, m1_completed_record):
+        """Poll exceeds max retries -> returns None."""
+        from varis.m4_conservation.clustal_client import run_alignment
+        orthologs = {
+            "sequences": {"query": "MKRST", "orth1": "MKRST"},
+            "query_id": "query",
+            "taxonomy": {},
+        }
+        mock_submit = MagicMock()
+        mock_submit.status_code = 200
+        mock_submit.text = "clustalo-R20260303-123456"
+        mock_status = MagicMock()
+        mock_status.status_code = 200
+        mock_status.text = "RUNNING"  # Never finishes
+
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_submit
+        mock_client.get.return_value = mock_status
+
+        record, alignment = run_alignment(
+            m1_completed_record, orthologs, client=mock_client,
+            max_polls=2, poll_interval=0,
+        )
+        assert alignment is None
+
+    def test_clustal_no_sequences(self, m1_completed_record):
+        """No orthologs -> skip."""
+        from varis.m4_conservation.clustal_client import run_alignment
+        record, alignment = run_alignment(m1_completed_record, None)
+        assert alignment is None
