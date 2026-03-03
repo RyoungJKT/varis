@@ -188,3 +188,57 @@ class TestEnsemble:
         s1 = predict_from_models(models, sample)
         s2 = predict_from_models(models, sample)
         assert s1["score_ensemble"] == pytest.approx(s2["score_ensemble"])
+
+
+class TestSHAPExplainer:
+    """Tests for shap_explainer.py — per-variant and global explanations."""
+
+    def test_shap_top_features_format(self, tmp_path):
+        """Returns list of {feature, value, shap} dicts."""
+        from varis.m5_scoring.shap_explainer import explain_from_models
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble
+        import pandas as pd
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        models = load_ensemble(tmp_path)
+        top_features = explain_from_models(models, X.iloc[0].to_dict(), top_n=10)
+        assert isinstance(top_features, list)
+        assert len(top_features) <= 10
+        for item in top_features:
+            assert "feature" in item
+            assert "value" in item
+            assert "shap" in item
+
+    def test_shap_sorted_by_abs_value(self, tmp_path):
+        """SHAP features sorted by |shap| descending."""
+        from varis.m5_scoring.shap_explainer import explain_from_models
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble
+        import pandas as pd
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        models = load_ensemble(tmp_path)
+        top_features = explain_from_models(models, X.iloc[0].to_dict())
+        shap_abs = [abs(f["shap"]) for f in top_features]
+        assert shap_abs == sorted(shap_abs, reverse=True)
+
+    def test_global_importance(self, tmp_path):
+        """Global importance is a dict of feature→mean_abs_shap."""
+        from varis.m5_scoring.shap_explainer import compute_global_importance
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble
+        import pandas as pd
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        models = load_ensemble(tmp_path)
+        importance = compute_global_importance(models, X)
+        assert isinstance(importance, dict)
+        assert "f1" in importance
+        assert all(v >= 0 for v in importance.values())
