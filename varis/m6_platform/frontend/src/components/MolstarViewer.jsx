@@ -3,12 +3,12 @@ import { useRef, useEffect, useState } from "react";
 export default function MolstarViewer({ structure }) {
   const containerRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
-  const viewerRef = useRef(null);
 
   const confidence = structure?.coordinate_mapping_confidence;
   const residueIndex = structure?.residue_index;
   const source = structure?.source;
   const plddtBucket = structure?.confidence_bucket;
+  const uniprotId = structure?.uniprot_id;
 
   // Determine if we can highlight the residue
   const canHighlight = confidence !== "failed" && residueIndex != null;
@@ -18,68 +18,36 @@ export default function MolstarViewer({ structure }) {
   useEffect(() => {
     if (!containerRef.current || !source) return;
 
-    let cancelled = false;
+    // Use the <pdbe-molstar> web component
+    const el = document.createElement("pdbe-molstar");
 
-    function initViewer() {
-      if (cancelled || !containerRef.current) return;
-
-      // Wait for CDN script to load
-      if (typeof window.PDBeMolstarPlugin === "undefined") {
-        setTimeout(initViewer, 200);
-        return;
-      }
-
-      const viewerInstance = new window.PDBeMolstarPlugin();
-      viewerRef.current = viewerInstance;
-
-      const options = {
-        bgColor: { r: 249, g: 250, b: 251 },
-        alphafoldView: source === "alphafold",
-        hideControls: true,
-        hideCanvasControls: ["selection", "animation", "controlToggle", "controlInfo"],
-        landscape: true,
-        reactive: true,
-      };
-
-      // For AlphaFold structures, use pdbe-molstar's native AlphaFold support
-      if (source === "alphafold" && structure.uniprot_id) {
-        options.moleculeId = structure.uniprot_id;
-      } else if (structure.pdb_url) {
-        options.customData = {
-          url: structure.pdb_url,
-          format: "pdb",
-        };
-      }
-
-      viewerInstance.render(containerRef.current, options);
-
-      // Give the viewer time to initialize then trigger a resize
-      setTimeout(() => {
-        if (!cancelled && viewerRef.current) {
-          try {
-            viewerRef.current.canvas?.handleResize();
-          } catch {
-            // Resize not available in this version
-          }
-        }
-      }, 500);
-
-      setLoaded(true);
+    if (source === "alphafold" && uniprotId) {
+      el.setAttribute("molecule-id", uniprotId);
+      el.setAttribute("alphafold-view", "true");
+    } else if (structure?.pdb_url) {
+      el.setAttribute("custom-data-url", structure.pdb_url);
+      el.setAttribute("custom-data-format", "pdb");
     }
 
-    initViewer();
+    el.setAttribute("hide-controls", "true");
+    el.setAttribute("hide-canvas-controls", "selection,animation,controlToggle,controlInfo");
+    el.setAttribute("bg-color-r", "249");
+    el.setAttribute("bg-color-g", "250");
+    el.setAttribute("bg-color-b", "251");
+    el.style.width = "100%";
+    el.style.height = "100%";
+    el.style.display = "block";
+
+    containerRef.current.innerHTML = "";
+    containerRef.current.appendChild(el);
+    setLoaded(true);
 
     return () => {
-      cancelled = true;
-      if (viewerRef.current) {
-        try {
-          viewerRef.current.clear();
-        } catch {
-          // Viewer already disposed
-        }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = "";
       }
     };
-  }, [source, structure]);
+  }, [source, uniprotId]);
 
   return (
     <div className="relative h-full">
