@@ -40,3 +40,35 @@ class TestFreeSASA:
         result = run_freesasa(m1_completed_record)
         assert result.sasa_available is False
         assert result.sasa_missing_reason is not None
+
+
+class TestDSSP:
+    """Tests for dssp_wrapper.py — secondary structure assignment."""
+
+    def test_dssp_returns_valid_code(self, m1_completed_record):
+        """Result in allowed DSSP code set."""
+        if not shutil.which("mkdssp"):
+            pytest.skip("mkdssp binary not installed")
+        from varis.m3_structural_analysis.dssp_wrapper import run_dssp
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        result = run_dssp(m1_completed_record)
+        if result.dssp_available:
+            valid_codes = {"H", "B", "E", "G", "I", "T", "S", "-", "C"}
+            assert result.secondary_structure in valid_codes
+            assert result.secondary_structure_name in ("helix", "sheet", "coil")
+
+    def test_dssp_mkdssp_missing(self, m1_completed_record, monkeypatch):
+        """dssp_available=False when mkdssp not found."""
+        from varis.m3_structural_analysis.dssp_wrapper import run_dssp
+        monkeypatch.setattr(shutil, "which", lambda x: None)
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        result = run_dssp(m1_completed_record)
+        assert result.dssp_available is False
+        assert result.dssp_missing_reason is not None
+
+    def test_dssp_no_structure(self, m1_completed_record):
+        """No PDB → dssp_available=False."""
+        from varis.m3_structural_analysis.dssp_wrapper import run_dssp
+        m1_completed_record.pdb_path = None
+        result = run_dssp(m1_completed_record)
+        assert result.dssp_available is False
