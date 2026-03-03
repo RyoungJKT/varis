@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 _UNIREF_STREAM_URL = (
-    "https://rest.uniprot.org/uniref/stream"
-    "?query=member:{uniprot_id}+AND+identity:0.5"
+    "https://rest.uniprot.org/uniprotkb/stream"
+    "?query=(uniref_cluster_50:UniRef50_{uniprot_id})"
     "&format=fasta&size=100"
 )
 _TIMEOUT_SECONDS = 60
