@@ -44,6 +44,9 @@ def build_investigation_response(record) -> InvestigationResponse:
 
 def _build_structure(record) -> StructureSection:
     """Build structure section from M2 data."""
+    variant_id = record.variant_id or f"{record.gene_symbol}_{record.hgvs_protein}"
+    pdb_url = f"/api/v1/structures/{variant_id}" if record.pdb_path else None
+
     return StructureSection(
         source=record.structure_source,
         chain="A",
@@ -55,6 +58,7 @@ def _build_structure(record) -> StructureSection:
         confidence_bucket=record.mutation_site_confidence_bucket,
         coordinate_mapping_confidence=record.coordinate_mapping_confidence,
         uniprot_id=record.uniprot_id,
+        pdb_url=pdb_url,
         normalization_warnings=record.normalization_warnings or [],
     )
 

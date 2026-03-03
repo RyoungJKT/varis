@@ -21,12 +21,19 @@ export default function MolstarViewer({ structure }) {
     // Use the <pdbe-molstar> web component
     const el = document.createElement("pdbe-molstar");
 
-    if (source === "alphafold" && uniprotId) {
+    // Prefer local PDB file served by our API; fall back to AlphaFold DB
+    const pdbUrl = structure?.pdb_url;
+    if (pdbUrl) {
+      // Resolve relative URL against the API origin
+      const apiBase = "http://localhost:8000";
+      el.setAttribute("custom-data-url", apiBase + pdbUrl);
+      el.setAttribute("custom-data-format", "pdb");
+      if (source === "alphafold") {
+        el.setAttribute("alphafold-view", "true");
+      }
+    } else if (source === "alphafold" && uniprotId) {
       el.setAttribute("molecule-id", uniprotId);
       el.setAttribute("alphafold-view", "true");
-    } else if (structure?.pdb_url) {
-      el.setAttribute("custom-data-url", structure.pdb_url);
-      el.setAttribute("custom-data-format", "pdb");
     }
 
     el.setAttribute("hide-controls", "true");

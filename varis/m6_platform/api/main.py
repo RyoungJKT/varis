@@ -8,6 +8,7 @@ Endpoints:
   GET  /api/v1/variants/stats           - Database statistics
   GET  /api/v1/jobs/{job_id}            - Job status
   GET  /api/v1/clinvar-submissions/{id} - ClinVar submission preview
+  GET  /api/v1/structures/{id}         - PDB structure file
   GET  /api/v1/evolution-log            - Evolution log events
 """
 
@@ -20,7 +21,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from varis.m6_platform.api.models import (
     InvestigationResponse,
@@ -250,6 +251,44 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
                 "variant_id": variant_id,
                 "submission": submission,
             }
+        finally:
+            session.close()
+
+    # === Structure File Serving ===
+
+    @app.get("/api/v1/structures/{variant_id}")
+    def get_structure_file(variant_id: str):
+        """Serve the PDB structure file for a variant.
+
+        Args:
+            variant_id: The variant identifier.
+
+        Returns:
+            The PDB file with appropriate content type.
+        """
+        from pathlib import Path
+
+        session = session_factory()
+        try:
+            record_dict = get_variant_record(session, variant_id)
+            if record_dict is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Variant '{variant_id}' not found",
+                )
+
+            pdb_path = record_dict.get("pdb_fixed_path") or record_dict.get("pdb_path")
+            if not pdb_path or not Path(pdb_path).exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail="No structure file available for this variant",
+                )
+
+            return FileResponse(
+                pdb_path,
+                media_type="chemical/x-pdb",
+                filename=f"{variant_id}.pdb",
+            )
         finally:
             session.close()
 
