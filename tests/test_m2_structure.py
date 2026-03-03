@@ -342,3 +342,51 @@ class TestESMFoldPredictor:
 
         assert result.pdb_path is not None
         assert result.structure_source == "esmfold"
+
+
+class TestPDBFixer:
+    """Tests for pdb_fixer.fix_structure()."""
+
+    def test_pdb_fixer_skipped_when_clean(self, m1_completed_record):
+        """Clean AlphaFold PDB -> no fixer run, preparation_steps=['validated']."""
+        from varis.m2_structure.pdb_fixer import fix_structure
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.preparation_steps = ["validated"]
+        result = fix_structure(m1_completed_record)
+        assert result.pdb_fixed_path is None or result.pdb_fixed_path == result.pdb_path
+        assert "validated" in result.preparation_steps
+
+    def test_pdb_fixer_no_structure(self, m1_completed_record):
+        """No pdb_path -> skip gracefully."""
+        from varis.m2_structure.pdb_fixer import fix_structure
+
+        m1_completed_record.pdb_path = None
+        result = fix_structure(m1_completed_record)
+        assert result.pdb_fixed_path is None
+
+    def test_pdb_fixer_output_parses(self, m1_completed_record):
+        """If fixer runs, output PDB still parses successfully."""
+        from varis.m2_structure.pdb_fixer import fix_structure
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.preparation_steps = ["validated"]
+        result = fix_structure(m1_completed_record)
+        pdb_to_check = result.pdb_fixed_path or result.pdb_path
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("test", pdb_to_check)
+        assert structure is not None
+
+    def test_site_preserved_after_fix(self, m1_completed_record):
+        """Target residue still present after PDBFixer."""
+        from varis.m2_structure.pdb_fixer import fix_structure
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.preparation_steps = ["validated"]
+        result = fix_structure(m1_completed_record)
+        pdb_to_check = result.pdb_fixed_path or result.pdb_path
+        parser = PDBParser(QUIET=True)
+        structure = parser.get_structure("test", pdb_to_check)
+        chain = next(iter(structure[0].get_chains()))
+        residue_ids = {r.id[1] for r in chain.get_residues() if r.id[0] == " "}
+        assert 1699 in residue_ids
