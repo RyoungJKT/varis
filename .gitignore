@@ -39,3 +39,6 @@ Thumbs.db
 # Coverage
 .coverage
 htmlcov/
+
+# CatBoost training artifacts
+catboost_info/
