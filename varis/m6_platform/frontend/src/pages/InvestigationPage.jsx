@@ -44,11 +44,8 @@ export default function InvestigationPage() {
 
   if (!data) return null;
 
-  // Extract evidence tags from features or provenance
-  const evidenceTags = data.features
-    ?.filter((f) => f.evidence_tag)
-    .map((f) => f.evidence_tag)
-    .filter((v, i, a) => a.indexOf(v) === i) || [];
+  // Evidence tags come directly from the API response
+  const evidenceTags = data.evidence_tags || [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">

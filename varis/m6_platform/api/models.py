@@ -85,6 +85,7 @@ class InvestigationResponse(BaseModel):
     features: list[FeatureItem] = Field(default_factory=list)
     prediction: PredictionSection = Field(default_factory=PredictionSection)
     explanation: list[ExplanationItem] = Field(default_factory=list)
+    evidence_tags: list[str] = Field(default_factory=list)
     provenance: ProvenanceSection = Field(default_factory=ProvenanceSection)
 
 

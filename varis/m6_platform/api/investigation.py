@@ -37,6 +37,7 @@ def build_investigation_response(record) -> InvestigationResponse:
         features=_build_features(record),
         prediction=_build_prediction(record),
         explanation=_build_explanation(record),
+        evidence_tags=record.evidence_tags or [],
         provenance=_build_provenance(record),
     )
 
