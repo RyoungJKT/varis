@@ -24,6 +24,7 @@ class StructureSection(BaseModel):
     plddt_mean: Optional[float] = None
     confidence_bucket: Optional[str] = None
     coordinate_mapping_confidence: Optional[str] = None
+    uniprot_id: Optional[str] = None
     normalization_warnings: list[str] = Field(default_factory=list)
 
 

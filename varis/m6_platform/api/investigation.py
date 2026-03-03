@@ -54,6 +54,7 @@ def _build_structure(record) -> StructureSection:
         plddt_mean=record.plddt_mean,
         confidence_bucket=record.mutation_site_confidence_bucket,
         coordinate_mapping_confidence=record.coordinate_mapping_confidence,
+        uniprot_id=record.uniprot_id,
         normalization_warnings=record.normalization_warnings or [],
     )
 

@@ -33,12 +33,12 @@ export default function MolstarViewer({ structure }) {
       alphafoldView: source === "alphafold",
     };
 
-    // For AlphaFold structures, use UniProt ID
-    if (source === "alphafold" && structure.ref_aa) {
-      // Use AlphaFold DB with a dummy structure for now
-      // In production, this would load from the actual PDB path
+    // For AlphaFold structures, use pdbe-molstar's native AlphaFold support
+    if (source === "alphafold" && structure.uniprot_id) {
+      options.moleculeId = structure.uniprot_id;
+    } else if (structure.pdb_url) {
       options.customData = {
-        url: structure.pdb_url || "",
+        url: structure.pdb_url,
         format: "pdb",
       };
     }
