@@ -5,12 +5,12 @@ High-confidence predictions are submitted with structural evidence.
 """
 
 import logging
-import os
 from datetime import date
 from typing import Optional
 
 import httpx
 
+from varis.config import CLINVAR_API_KEY
 from varis.models.variant_record import VariantRecord
 
 logger = logging.getLogger(__name__)
@@ -196,7 +196,7 @@ def submit_to_clinvar(
     # -----------------------------------------------------------------
     # Check for API key
     # -----------------------------------------------------------------
-    api_key = os.environ.get("CLINVAR_API_KEY")
+    api_key = CLINVAR_API_KEY
     if not api_key:
         logger.warning(
             "Cannot submit %s: CLINVAR_API_KEY environment variable not set",

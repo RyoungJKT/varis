@@ -36,6 +36,7 @@ CLUSTAL_OMEGA_URL = "https://www.ebi.ac.uk/Tools/services/rest/clustalo"
 # =========================================================================
 NCBI_API_KEY = os.getenv("NCBI_API_KEY", "")  # Optional but increases rate limit
 ALPHAFOLD_API_KEY = os.getenv("ALPHAFOLD_API_KEY", "")  # Not currently required
+CLINVAR_API_KEY = os.getenv("CLINVAR_API_KEY", "")  # Required for ClinVar submission
 
 # =========================================================================
 # PIPELINE SETTINGS
