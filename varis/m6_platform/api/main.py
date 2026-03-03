@@ -136,7 +136,7 @@ def investigate_variant_full(variant_id: str) -> dict:
     # 1. Load VariantRecord from database
     # 2. Build structure section from normalization fields:
     #    - source, chain, residue_index ← normalization.structure_residue_position
-    #    - plddt_at_residue ← structural_features.plddt_score
+    #    - plddt_at_residue ← structural_features.mutation_site_plddt
     #    - coordinate_mapping_confidence ← normalization.coordinate_mapping_confidence
     # 3. Build features list from get_structural_features() + feature_availability flags
     # 4. Build prediction from scoring.* fields (ensemble_score, classification, CI, etc.)
