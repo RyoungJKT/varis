@@ -27,6 +27,7 @@ ALPHAFOLD_DB_URL = "https://alphafold.ebi.ac.uk/api"
 ESMFOLD_API_URL = "https://api.esmatlas.com/foldSequence/v1/pdb"
 ALPHAMISSENSE_URL = "https://zenodo.org/records/8208688"
 NCBI_BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
+INTERPRO_API_URL = "https://www.ebi.ac.uk/interpro/api"
 
 # =========================================================================
 # API KEYS (from environment variables)

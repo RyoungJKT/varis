@@ -43,6 +43,8 @@ structure = [
     "mdanalysis>=2.6",
     "gemmi>=0.6",
     "openbabel-wheel>=3.1",
+    "pdbfixer>=1.9",
+    "mdtraj>=1.9",
 ]
 platform = [
     "fastapi>=0.104",
