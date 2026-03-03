@@ -18,35 +18,44 @@ export default function MolstarViewer({ structure }) {
   useEffect(() => {
     if (!containerRef.current || !source) return;
 
-    // Only initialize pdbe-molstar if it's available (loaded from CDN)
-    if (typeof window.PDBeMolstarPlugin === "undefined") {
-      setLoaded(false);
-      return;
-    }
+    let cancelled = false;
 
-    const viewerInstance = new window.PDBeMolstarPlugin();
-    viewerRef.current = viewerInstance;
+    function initViewer() {
+      if (cancelled || !containerRef.current) return;
 
-    const options = {
-      hideControls: true,
-      bgColor: { r: 249, g: 250, b: 251 },
-      alphafoldView: source === "alphafold",
-    };
+      // Wait for CDN script to load
+      if (typeof window.PDBeMolstarPlugin === "undefined") {
+        setTimeout(initViewer, 200);
+        return;
+      }
 
-    // For AlphaFold structures, use pdbe-molstar's native AlphaFold support
-    if (source === "alphafold" && structure.uniprot_id) {
-      options.moleculeId = structure.uniprot_id;
-    } else if (structure.pdb_url) {
-      options.customData = {
-        url: structure.pdb_url,
-        format: "pdb",
+      const viewerInstance = new window.PDBeMolstarPlugin();
+      viewerRef.current = viewerInstance;
+
+      const options = {
+        hideControls: true,
+        bgColor: { r: 249, g: 250, b: 251 },
+        alphafoldView: source === "alphafold",
       };
+
+      // For AlphaFold structures, use pdbe-molstar's native AlphaFold support
+      if (source === "alphafold" && structure.uniprot_id) {
+        options.moleculeId = structure.uniprot_id;
+      } else if (structure.pdb_url) {
+        options.customData = {
+          url: structure.pdb_url,
+          format: "pdb",
+        };
+      }
+
+      viewerInstance.render(containerRef.current, options);
+      setLoaded(true);
     }
 
-    viewerInstance.render(containerRef.current, options);
-    setLoaded(true);
+    initViewer();
 
     return () => {
+      cancelled = true;
       if (viewerRef.current) {
         try {
           viewerRef.current.clear();
