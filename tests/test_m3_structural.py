@@ -212,3 +212,39 @@ class TestInterPro:
         assert result.domain_start is not None
         assert result.domain_end is not None
         assert result.domain_start < result.domain_end
+
+
+class TestM3Orchestrator:
+    """Tests for M3 orchestration — site-gating and full pipeline."""
+
+    def test_m3_skips_when_site_absent(self, m1_completed_record):
+        """All site-dependent features skipped when mutation_site_present=False."""
+        from varis.m3_structural_analysis import run
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.mutation_site_present = False
+        result = run(m1_completed_record)
+        # Site-dependent features should be explicitly skipped
+        assert result.sasa_available is False
+        assert result.dssp_available is False
+        assert result.contacts_available is False
+        # M3 should still complete
+        assert "M3" in result.modules_completed
+
+    def test_m3_no_structure(self, m1_completed_record):
+        """M3 with no structure marks failed."""
+        from varis.m3_structural_analysis import run
+        m1_completed_record.pdb_path = None
+        result = run(m1_completed_record)
+        assert "M3" in result.modules_failed
+
+    def test_m3_integration_golden_record(self, m1_completed_record):
+        """Full M3 pipeline — verify all feature availability flags are set."""
+        from varis.m3_structural_analysis import run
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        m1_completed_record.mutation_site_present = True
+        result = run(m1_completed_record)
+        assert "M3" in result.modules_completed
+        for flag in ["sasa_available", "dssp_available", "contacts_available",
+                      "ddg_available", "domain_available"]:
+            val = getattr(result, flag)
+            assert val is not None, f"{flag} should be True or False, not None"
