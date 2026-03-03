@@ -382,3 +382,44 @@ class TestAblation:
         results = run_ablation(X, y, genes, groups=["conservation"], output_dir=tmp_path)
         assert "without_conservation" in results
         assert "roc_auc" in results["without_conservation"]
+
+
+class TestM5Orchestrator:
+    """Tests for M5 orchestration."""
+
+    def test_m5_predict_with_mock_models(self, fully_populated_record, tmp_path):
+        """Full M5 pipeline with trained models."""
+        from varis.m5_scoring import run
+        from varis.m5_scoring.ensemble import train_ensemble
+        import pandas as pd
+        # Train tiny models
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({col: np.random.randn(n) for col in [
+            "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility_relative",
+            "contacts_wt", "hbonds_wt", "packing_density",
+            "conservation_score", "mutation_site_plddt",
+            "gnomad_frequency", "alphamissense_score",
+            "in_domain", "ddg_available", "sasa_available",
+            "dssp_available", "conservation_available",
+            "domain_available", "contacts_available",
+            "secondary_structure_helix", "secondary_structure_sheet",
+            "secondary_structure_coil", "burial_category_core", "burial_category_surface",
+        ]})
+        y = pd.Series((X["conservation_score"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+
+        with patch("varis.m5_scoring.MODELS_DIR", tmp_path):
+            result = run(fully_populated_record)
+
+        assert "M5" in result.modules_completed
+        assert result.score_ensemble is not None
+        assert 0.0 <= result.score_ensemble <= 1.0
+        assert result.classification in ("likely_pathogenic", "uncertain", "likely_benign")
+        assert result.evidence_tags is not None
+
+    def test_m5_no_features(self, empty_record):
+        """No features → M5 fails gracefully."""
+        from varis.m5_scoring import run
+        result = run(empty_record)
+        assert "M5" in (result.modules_failed or [])
