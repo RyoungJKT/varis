@@ -256,3 +256,41 @@ class TestClustalClient:
         from varis.m4_conservation.clustal_client import run_alignment
         record, alignment = run_alignment(m1_completed_record, None)
         assert alignment is None
+
+
+class TestConSurfFallback:
+    """Tests for consurf_fallback.py — pre-computed conservation."""
+
+    def test_consurf_known_protein(self, m1_completed_record):
+        """Mocked: returns grade, mapped to score."""
+        from varis.m4_conservation.consurf_fallback import fetch_consurf
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "grades": {str(i): {"grade": 5} for i in range(1, 1864)},
+        }
+        mock_response.json.return_value["grades"]["1699"] = {"grade": 9}
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        result = fetch_consurf(m1_completed_record, client=mock_client)
+        assert result.conservation_score is not None
+        assert result.conservation_score == pytest.approx(1.0, abs=0.01)  # Grade 9 -> (9-1)/8 = 1.0
+        assert result.conservation_method == "consurf"
+        assert result.conservation_available is True
+
+    def test_consurf_unknown_protein(self, m1_completed_record):
+        """Mocked: 404 -> conservation_available=False."""
+        from varis.m4_conservation.consurf_fallback import fetch_consurf
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        result = fetch_consurf(m1_completed_record, client=mock_client)
+        assert result.conservation_available is False
+
+    def test_consurf_no_uniprot_id(self, m1_completed_record):
+        """No uniprot_id -> skip."""
+        from varis.m4_conservation.consurf_fallback import fetch_consurf
+        m1_completed_record.uniprot_id = None
+        result = fetch_consurf(m1_completed_record)
+        assert result.conservation_available is False
