@@ -121,7 +121,7 @@ def format_clinvar_submission(
         # Assemble submission dict
         # -----------------------------------------------------------------
         submission: dict = {
-            "record_status": "novel",
+            "record_status": "update" if variant_record.clinvar_id else "novel",
             "variant_id": variant_record.variant_id,
             "gene_symbol": variant_record.gene_symbol,
             "hgvs_coding": hgvs_coding,

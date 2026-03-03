@@ -123,7 +123,7 @@ class TestFormatPathogenicSubmission:
         result = format_clinvar_submission(pathogenic_record)
 
         assert result is not None
-        assert result["record_status"] == "novel"
+        assert result["record_status"] == "update"  # has clinvar_id
         assert result["variant_id"] == "BRCA1_p.Arg1699Trp"
         assert result["gene_symbol"] == "BRCA1"
         assert result["hgvs_coding"] == "NM_007294.4:c.5095C>T"
