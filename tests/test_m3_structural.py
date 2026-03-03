@@ -112,3 +112,80 @@ class TestContacts:
         m1_completed_record.pdb_path = None
         result = run_contacts(m1_completed_record)
         assert result.contacts_available is False
+
+
+class TestInterPro:
+    """Tests for interpro_client.py — domain identification via InterPro API."""
+
+    def test_interpro_brca1_domain(self, m1_completed_record):
+        """Returns BRCT domain with boundaries for position 1699 (mocked)."""
+        from varis.m3_structural_analysis.interpro_client import run_interpro
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "results": [{
+                "metadata": {
+                    "accession": "PF00533",
+                    "name": "BRCT",
+                    "type": "domain",
+                },
+                "proteins": [{
+                    "entry_protein_locations": [{
+                        "fragments": [{"start": 1646, "end": 1736}]
+                    }]
+                }]
+            }]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        result = run_interpro(m1_completed_record, client=mock_client)
+        assert result.domain_available is True
+        assert result.domain_name == "BRCT"
+        assert result.domain_id == "PF00533"
+        assert result.domain_start == 1646
+        assert result.domain_end == 1736
+
+    def test_interpro_position_outside_domain(self, m1_completed_record):
+        """Position outside any domain -> domain_available=False (mocked)."""
+        from varis.m3_structural_analysis.interpro_client import run_interpro
+        m1_completed_record.residue_position = 50
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "results": [{
+                "metadata": {"accession": "PF00533", "name": "BRCT", "type": "domain"},
+                "proteins": [{"entry_protein_locations": [{"fragments": [{"start": 1646, "end": 1736}]}]}]
+            }]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        result = run_interpro(m1_completed_record, client=mock_client)
+        assert result.domain_available is False
+
+    def test_interpro_no_uniprot_id(self, m1_completed_record):
+        """No UniProt ID -> domain_available=False."""
+        from varis.m3_structural_analysis.interpro_client import run_interpro
+        m1_completed_record.uniprot_id = None
+        result = run_interpro(m1_completed_record)
+        assert result.domain_available is False
+
+    def test_interpro_stores_boundaries(self, m1_completed_record):
+        """Domain start/end boundaries are stored."""
+        from varis.m3_structural_analysis.interpro_client import run_interpro
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "results": [{
+                "metadata": {"accession": "PF00533", "name": "BRCT", "type": "domain"},
+                "proteins": [{"entry_protein_locations": [{"fragments": [{"start": 1646, "end": 1736}]}]}]
+            }]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get.return_value = mock_response
+        result = run_interpro(m1_completed_record, client=mock_client)
+        assert result.domain_start is not None
+        assert result.domain_end is not None
+        assert result.domain_start < result.domain_end

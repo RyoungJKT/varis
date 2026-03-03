@@ -22,7 +22,7 @@ def run(variant_record):
     from varis.m3_structural_analysis.biopython_contacts import run_contacts
     from varis.m3_structural_analysis.foldx_wrapper import run_foldx
     from varis.m3_structural_analysis.pyrosetta_wrapper import run_pyrosetta
-    from varis.m3_structural_analysis.hmmer_wrapper import run_hmmer
+    from varis.m3_structural_analysis.interpro_client import run_interpro
     from varis.m3_structural_analysis.mdanalysis_wrapper import run_mdanalysis
 
     tools = [
@@ -31,7 +31,7 @@ def run(variant_record):
         ("M3.contacts", run_contacts),
         ("M3.foldx", run_foldx),
         ("M3.pyrosetta", run_pyrosetta),
-        ("M3.hmmer", run_hmmer),
+        ("M3.interpro", run_interpro),
         ("M3.mdanalysis", run_mdanalysis),
     ]
     for name, fn in tools:
