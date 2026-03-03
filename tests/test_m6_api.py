@@ -120,3 +120,45 @@ class TestValidation:
         result = validate_variant_input("BRCA1", "invalid_format")
         assert result["valid"] is False
         assert "Expected" in result["error"]
+
+
+class TestInvestigationBuilder:
+    """Tests for building InvestigationResponse from VariantRecord."""
+
+    def test_build_from_full_record(self, fully_populated_record):
+        """Full record produces complete response."""
+        from varis.m6_platform.api.investigation import build_investigation_response
+        resp = build_investigation_response(fully_populated_record)
+        assert resp.variant_id is not None
+        assert resp.structure.source == "alphafold"
+        assert resp.prediction.score is not None
+        assert len(resp.provenance.data_sources) > 0
+        assert len(resp.provenance.modules_completed) > 0
+
+    def test_build_features_list(self, fully_populated_record):
+        """Features list includes availability flags."""
+        from varis.m6_platform.api.investigation import build_investigation_response
+        resp = build_investigation_response(fully_populated_record)
+        assert len(resp.features) > 0
+        for f in resp.features:
+            assert hasattr(f, "available")
+
+    def test_build_from_partial_record(self, m1_completed_record):
+        """Partial record (M1 only) still produces valid response."""
+        from varis.m6_platform.api.investigation import build_investigation_response
+        resp = build_investigation_response(m1_completed_record)
+        assert resp.variant_id is not None
+        assert resp.prediction.score is None  # M5 not run yet
+        assert len(resp.explanation) == 0  # No SHAP without M5
+
+    def test_explanation_pre_sorted(self, fully_populated_record):
+        """SHAP items come pre-sorted by |shap| descending."""
+        from varis.m6_platform.api.investigation import build_investigation_response
+        fully_populated_record.shap_top_features = [
+            {"feature": "a", "value": 1.0, "shap": 0.1},
+            {"feature": "b", "value": 2.0, "shap": -0.3},
+            {"feature": "c", "value": 3.0, "shap": 0.2},
+        ]
+        resp = build_investigation_response(fully_populated_record)
+        shap_abs = [abs(e.shap) for e in resp.explanation]
+        assert shap_abs == sorted(shap_abs, reverse=True)
