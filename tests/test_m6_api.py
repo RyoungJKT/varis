@@ -162,3 +162,48 @@ class TestInvestigationBuilder:
         resp = build_investigation_response(fully_populated_record)
         shap_abs = [abs(e.shap) for e in resp.explanation]
         assert shap_abs == sorted(shap_abs, reverse=True)
+
+
+class TestWorker:
+    """Tests for background worker."""
+
+    def test_submit_job(self, tmp_path):
+        """Submit creates a queued job."""
+        from varis.m6_platform.api.database import init_db, get_job
+        from varis.m6_platform.api.worker import InvestigationWorker
+        engine, SessionLocal = init_db(f"sqlite:///{tmp_path}/test.db")
+        session = SessionLocal()
+        worker = InvestigationWorker(SessionLocal, max_workers=1)
+        job_id = worker.submit("BRCA1", "p.Arg1699Trp", session)
+        assert job_id is not None
+        job = get_job(session, job_id)
+        assert job["status"] in ("queued", "running")
+        worker.shutdown()
+        session.close()
+
+    def test_job_completes(self, tmp_path):
+        """Mocked pipeline -> job succeeds."""
+        from varis.m6_platform.api.database import init_db, get_job
+        from varis.m6_platform.api.worker import InvestigationWorker
+        engine, SessionLocal = init_db(f"sqlite:///{tmp_path}/test.db")
+        session = SessionLocal()
+        with patch("varis.m6_platform.api.worker.run_pipeline") as mock_pipeline:
+            mock_record = MagicMock()
+            mock_record.variant_id = "BRCA1_p.Arg1699Trp"
+            mock_record.to_json.return_value = "{}"
+            mock_record.gene_symbol = "BRCA1"
+            mock_record.clinvar_id = None
+            mock_record.classification = "likely_pathogenic"
+            mock_record.ensemble_version = "v2026.03"
+            mock_record.pipeline_version = "v1.0"
+            mock_record.score_ensemble = 0.91
+            mock_record.hgvs_protein = "p.Arg1699Trp"
+            mock_record.to_dict.return_value = {"gene_symbol": "BRCA1"}
+            mock_pipeline.return_value = mock_record
+            worker = InvestigationWorker(SessionLocal, max_workers=1)
+            job_id = worker.submit("BRCA1", "p.Arg1699Trp", session)
+            time.sleep(2)  # Wait for worker thread
+            job = get_job(SessionLocal(), job_id)
+            assert job["status"] == "succeeded"
+            worker.shutdown()
+        session.close()
