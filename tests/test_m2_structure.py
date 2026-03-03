@@ -1,11 +1,13 @@
 """Tests for M2: Structure Retrieval and Preparation."""
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 from Bio.PDB import PDBParser
 
 from varis.config import STRUCTURES_DIR
+from varis.m2_structure.esmfold_predictor import predict_esmfold
 from varis.m2_structure.structure_validator import validate_structure
 from varis.models.variant_record import (
     VariantRecord,
@@ -278,3 +280,65 @@ class TestStructureValidator:
         assert len(result.pdb_hash) == 64
         # Verify it's valid hex
         int(result.pdb_hash, 16)
+
+
+class TestESMFoldPredictor:
+    """Tests for esmfold_predictor.predict_esmfold()."""
+
+    def test_sequence_too_long(self):
+        """Sequences over 400aa should be skipped with INTENTIONALLY_SKIPPED."""
+        record = create_variant_record("TEST", "p.Met1Val")
+        record.protein_sequence = "M" * 401
+        record.pdb_path = None
+
+        result = predict_esmfold(record)
+
+        assert result.pdb_path is None
+        assert "pdb_path" in result.null_reasons
+
+    def test_no_sequence_available(self):
+        """Missing protein_sequence should be skipped with UPSTREAM_DEPENDENCY_FAILED."""
+        record = create_variant_record("TEST", "p.Met1Val")
+        record.protein_sequence = None
+        record.pdb_path = None
+
+        result = predict_esmfold(record)
+
+        assert result.pdb_path is None
+
+    def test_skips_if_structure_exists(self):
+        """If pdb_path is already set, ESMFold should not overwrite it."""
+        record = create_variant_record("TEST", "p.Met1Val")
+        record.pdb_path = "/some/existing.pdb"
+
+        result = predict_esmfold(record)
+
+        assert result.pdb_path == "/some/existing.pdb"
+
+    def test_successful_prediction(self, tmp_path, monkeypatch):
+        """Mock a successful ESMFold API call and verify PDB is saved."""
+        # Set up the record
+        record = create_variant_record("TEST", "p.Met1Val")
+        record.protein_sequence = "MKFLILLFNILCLFPVLAADNHGVS"  # 25 aa
+        record.pdb_path = None
+        record.uniprot_id = "TEST123"
+
+        # Redirect STRUCTURES_DIR to tmp_path
+        monkeypatch.setattr(
+            "varis.m2_structure.esmfold_predictor.STRUCTURES_DIR", tmp_path
+        )
+
+        # Mock the httpx client
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            "ATOM      1  N   MET A   1"
+            "       0.000   0.000   0.000\nEND\n"
+        )
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+
+        result = predict_esmfold(record, client=mock_client)
+
+        assert result.pdb_path is not None
+        assert result.structure_source == "esmfold"
