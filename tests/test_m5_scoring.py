@@ -106,3 +106,85 @@ class TestFeatureExtractor:
         features = modified.get_ml_features()
         assert features["sasa_available"] is False
         assert modified.solvent_accessibility_relative is None
+
+
+class TestEnsemble:
+    """Tests for ensemble.py — train, calibrate, predict."""
+
+    def test_classify_thresholds(self):
+        """Classification thresholds: >0.8 pathogenic, <0.2 benign."""
+        from varis.m5_scoring.ensemble import _classify
+        assert _classify(0.9) == "likely_pathogenic"
+        assert _classify(0.5) == "uncertain"
+        assert _classify(0.1) == "likely_benign"
+        assert _classify(0.8) == "uncertain"  # boundary: not >0.8
+        assert _classify(0.81) == "likely_pathogenic"
+        assert _classify(0.2) == "uncertain"  # boundary: not <0.2
+        assert _classify(0.19) == "likely_benign"
+
+    def test_model_agreement(self):
+        """Spread thresholds for agreement."""
+        from varis.m5_scoring.ensemble import _compute_model_agreement
+        assert _compute_model_agreement({"a": 0.8, "b": 0.85, "c": 0.82}) == "high"
+        assert _compute_model_agreement({"a": 0.7, "b": 0.85, "c": 0.82}) == "moderate"
+        assert _compute_model_agreement({"a": 0.5, "b": 0.85, "c": 0.82}) == "low"
+
+    def test_train_and_predict_roundtrip(self, tmp_path):
+        """Train on synthetic data, save, load, predict."""
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble, predict_from_models
+        import pandas as pd
+        # Small synthetic dataset: 50 samples, 5 features
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({
+            "feat1": np.random.randn(n),
+            "feat2": np.random.randn(n),
+            "feat3": np.random.randn(n),
+            "feat4": np.random.randn(n),
+            "feat5": np.random.randn(n),
+        })
+        y = pd.Series((X["feat1"] > 0).astype(int))  # Simple decision boundary
+        train_ensemble(X, y, output_dir=tmp_path)
+        # Verify files saved
+        assert (tmp_path / "catboost_model.cbm").exists()
+        assert (tmp_path / "xgboost_model.json").exists()
+        assert (tmp_path / "lightgbm_model.txt").exists()
+        assert (tmp_path / "calibrator.pkl").exists()
+        assert (tmp_path / "feature_columns.json").exists()
+        # Load and predict
+        models = load_ensemble(tmp_path)
+        scores = predict_from_models(models, X.iloc[0].to_dict())
+        assert "score_ensemble" in scores
+        assert 0.0 <= scores["score_ensemble"] <= 1.0
+        assert "score_catboost" in scores
+        assert "classification" in scores
+        assert "model_agreement" in scores
+
+    def test_calibration_range(self, tmp_path):
+        """Calibrated score in [0, 1]."""
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble, predict_from_models
+        import pandas as pd
+        np.random.seed(42)
+        n = 100
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        models = load_ensemble(tmp_path)
+        for i in range(10):
+            scores = predict_from_models(models, X.iloc[i].to_dict())
+            assert 0.0 <= scores["score_ensemble"] <= 1.0
+
+    def test_save_load_roundtrip(self, tmp_path):
+        """Save and load produces same predictions."""
+        from varis.m5_scoring.ensemble import train_ensemble, load_ensemble, predict_from_models
+        import pandas as pd
+        np.random.seed(42)
+        n = 50
+        X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
+        y = pd.Series((X["f1"] > 0).astype(int))
+        train_ensemble(X, y, output_dir=tmp_path)
+        models = load_ensemble(tmp_path)
+        sample = X.iloc[0].to_dict()
+        s1 = predict_from_models(models, sample)
+        s2 = predict_from_models(models, sample)
+        assert s1["score_ensemble"] == pytest.approx(s2["score_ensemble"])
