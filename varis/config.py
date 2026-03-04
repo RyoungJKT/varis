@@ -46,6 +46,7 @@ DDG_DAMAGING_THRESHOLD = 2.0  # kcal/mol — above this is destabilizing
 PLDDT_CONFIDENCE_THRESHOLD = 70.0  # Below this, structural predictions are uncertain
 CONSERVATION_HIGH_THRESHOLD = 0.9  # Above this, position is highly conserved
 GNOMAD_RARE_THRESHOLD = 0.0001  # Below this, variant is rare
+EVOEF2_BINARY = os.getenv("EVOEF2_BINARY", "")
 
 # =========================================================================
 # ML MODEL SETTINGS

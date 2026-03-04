@@ -31,7 +31,7 @@ ONE_HOT_CATEGORIES = {
 
 # Feature groups for missingness simulation
 FEATURE_GROUPS = {
-    "ddg": ["ddg_foldx", "ddg_pyrosetta"],
+    "ddg": ["ddg_evoef2", "ddg_foldx", "ddg_pyrosetta"],
     "sasa": ["solvent_accessibility_relative", "burial_category"],
     "dssp": ["secondary_structure_name"],
     "conservation": ["conservation_score"],
@@ -61,7 +61,7 @@ def extract_features(variant_record: VariantRecord) -> dict:
 
     # Numeric features (pass through directly)
     numeric_keys = [
-        "ddg_foldx", "ddg_pyrosetta",
+        "ddg_evoef2", "ddg_foldx", "ddg_pyrosetta",
         "solvent_accessibility_relative",
         "contacts_wt", "hbonds_wt", "packing_density",
         "conservation_score",

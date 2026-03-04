@@ -30,7 +30,7 @@ import json
 # =============================================================================
 # SCHEMA VERSION — Increment on any field addition, removal, or type change
 # =============================================================================
-RECORD_SCHEMA_VERSION = "1.4.0"
+RECORD_SCHEMA_VERSION = "1.5.0"
 
 
 # =============================================================================
@@ -166,6 +166,7 @@ class VariantRecord:
     # =========================================================================
     # STRUCTURAL FEATURES — From 3D analysis (populated by M3)
     # =========================================================================
+    ddg_evoef2: Optional[float] = None
     ddg_foldx: Optional[float] = None
     ddg_pyrosetta: Optional[float] = None
     ddg_mean: Optional[float] = None
@@ -337,6 +338,7 @@ class VariantRecord:
         The gradient-boosted tree ensemble handles None natively.
         """
         return {
+            "ddg_evoef2": self.ddg_evoef2,
             "ddg_foldx": self.ddg_foldx,
             "ddg_pyrosetta": self.ddg_pyrosetta,
             "solvent_accessibility_relative": self.solvent_accessibility_relative,
@@ -403,7 +405,8 @@ class VariantRecord:
                 f"current={RECORD_SCHEMA_VERSION}"
             )
         feature_fields = [
-            "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility_relative",
+            "ddg_evoef2", "ddg_foldx", "ddg_pyrosetta",
+            "solvent_accessibility_relative",
             "secondary_structure", "conservation_score", "domain_name",
         ]
         if self.null_reasons is None:

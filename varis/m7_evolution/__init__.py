@@ -1,7 +1,7 @@
 """M7: Self-Evolution — Auto-retrain, tool discovery, and evolution logging.
 
 Three autonomous loops at different independence levels:
-Loop 1: Auto-Retraining (fully autonomous) — monthly ClinVar scan → retrain → deploy
+Loop 1: Auto-Retraining (fully autonomous) — weekly ClinVar scan → retrain → deploy
 Loop 2: Tool Discovery (semi-autonomous) — scout arXiv/GitHub → LLM evaluates → propose
 Loop 3: Auto-Integration (partially autonomous) — install → wrapper → benchmark → integrate
 

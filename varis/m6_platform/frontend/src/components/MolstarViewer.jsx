@@ -2,13 +2,16 @@ import { useRef, useEffect, useState } from "react";
 
 export default function MolstarViewer({ structure }) {
   const containerRef = useRef(null);
+  const viewerRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(null);
 
   const confidence = structure?.coordinate_mapping_confidence;
   const residueIndex = structure?.residue_index;
   const source = structure?.source;
   const plddtBucket = structure?.confidence_bucket;
   const uniprotId = structure?.uniprot_id;
+  const pdbUrl = structure?.pdb_url;
 
   // Determine if we can highlight the residue
   const canHighlight = confidence !== "failed" && residueIndex != null;
@@ -18,43 +21,63 @@ export default function MolstarViewer({ structure }) {
   useEffect(() => {
     if (!containerRef.current || !source) return;
 
-    // Use the <pdbe-molstar> web component
-    const el = document.createElement("pdbe-molstar");
-
-    // Prefer local PDB file served by our API; fall back to AlphaFold DB
-    const pdbUrl = structure?.pdb_url;
-    if (pdbUrl) {
-      // Resolve relative URL against the API origin
-      const apiBase = "http://localhost:8000";
-      el.setAttribute("custom-data-url", apiBase + pdbUrl);
-      el.setAttribute("custom-data-format", "pdb");
-      if (source === "alphafold") {
-        el.setAttribute("alphafold-view", "true");
-      }
-    } else if (source === "alphafold" && uniprotId) {
-      el.setAttribute("molecule-id", uniprotId);
-      el.setAttribute("alphafold-view", "true");
+    // Check that the plugin script loaded
+    if (!window.PDBeMolstarPlugin) {
+      console.error("PDBeMolstarPlugin not found — CDN script may not have loaded");
+      setError("3D viewer failed to load");
+      return;
     }
 
-    el.setAttribute("hide-controls", "true");
-    el.setAttribute("hide-canvas-controls", "selection,animation,controlToggle,controlInfo");
-    el.setAttribute("bg-color-r", "249");
-    el.setAttribute("bg-color-g", "250");
-    el.setAttribute("bg-color-b", "251");
-    el.style.width = "100%";
-    el.style.height = "100%";
-    el.style.display = "block";
+    const viewer = new window.PDBeMolstarPlugin();
+    viewerRef.current = viewer;
 
-    containerRef.current.innerHTML = "";
-    containerRef.current.appendChild(el);
-    setLoaded(true);
+    const options = {
+      hideControls: true,
+      hideCanvasControls: ["selection", "animation", "controlToggle", "controlInfo"],
+      bgColor: { r: 249, g: 250, b: 251 },
+      subscribeEvents: false,
+      landscape: true,
+    };
+
+    if (pdbUrl) {
+      // Use relative URL — goes through Vite proxy in dev, same-origin in prod
+      options.customData = {
+        url: pdbUrl,
+        format: "pdb",
+        binary: false,
+      };
+      if (source === "alphafold") {
+        options.alphafoldView = true;
+      }
+    } else if (source === "alphafold" && uniprotId) {
+      // Fallback: fetch directly from AlphaFold DB
+      options.customData = {
+        url: `https://alphafold.ebi.ac.uk/files/AF-${uniprotId}-F1-model_v4.cif`,
+        format: "cif",
+        binary: false,
+      };
+      options.alphafoldView = true;
+    }
+
+    viewer
+      .render(containerRef.current, options)
+      .then(() => {
+        setLoaded(true);
+      })
+      .catch((err) => {
+        console.error("Mol* render failed:", err);
+        setError("Structure could not be displayed");
+      });
 
     return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
+      try {
+        viewer.clear();
+      } catch {
+        // ignore cleanup errors
       }
+      viewerRef.current = null;
     };
-  }, [source, uniprotId]);
+  }, [source, uniprotId, pdbUrl]);
 
   return (
     <div className="relative h-full">
@@ -80,20 +103,23 @@ export default function MolstarViewer({ structure }) {
       {/* Mol* container */}
       <div ref={containerRef} className="h-full w-full bg-gray-100 rounded" />
 
-      {/* Fallback if Mol* not loaded */}
+      {/* Fallback / error states */}
       {!loaded && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 rounded">
-          <svg className="w-16 h-16 text-gray-300 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M12 3L2 9l10 6 10-6-10-6z" />
-            <path d="M2 17l10 6 10-6" />
-            <path d="M2 13l10 6 10-6" />
-          </svg>
-          <p className="text-sm text-gray-400">3D Structure Viewer</p>
-          {source && (
-            <p className="text-xs text-gray-300 mt-1">Source: {source}</p>
-          )}
-          {canHighlight && (
-            <p className="text-xs text-gray-300">Residue: {residueIndex}</p>
+          {error ? (
+            <p className="text-sm text-red-400">{error}</p>
+          ) : (
+            <>
+              <svg className="w-16 h-16 text-gray-300 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 3L2 9l10 6 10-6-10-6z" />
+                <path d="M2 17l10 6 10-6" />
+                <path d="M2 13l10 6 10-6" />
+              </svg>
+              <p className="text-sm text-gray-400">Loading 3D structure...</p>
+              {source && (
+                <p className="text-xs text-gray-300 mt-1">Source: {source}</p>
+              )}
+            </>
           )}
         </div>
       )}

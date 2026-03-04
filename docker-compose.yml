@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        INSTALL_EVOEF2: "true"
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://varis:varis@db:5432/varis
+      - CORS_ORIGINS=http://localhost:5173
+      - NCBI_API_KEY=${NCBI_API_KEY:-}
+      - CLINVAR_API_KEY=${CLINVAR_API_KEY:-}
+      - EVOEF2_BINARY=EvoEF2
+    volumes:
+      - structures:/app/data/structures
+      - models:/app/data/models
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=varis
+      - POSTGRES_PASSWORD=varis
+      - POSTGRES_DB=varis
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U varis"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./varis/m6_platform/frontend:/app
+    environment:
+      - VITE_API_URL=http://localhost:8000
+
+volumes:
+  pgdata:
+  structures:
+  models:

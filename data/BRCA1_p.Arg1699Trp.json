@@ -1,5 +1,5 @@
 {
-  "record_schema_version": "1.1.0",
+  "record_schema_version": "1.4.0",
   "feature_set_version": null,
   "gene_symbol": "BRCA1",
   "hgvs_protein": "p.Arg1699Trp",
@@ -83,77 +83,148 @@
   "structure_source": "alphafold",
   "pdb_path": "/Users/darwin/Documents/Claude/varis/data/structures/AF-P38398-F1-model_v6.pdb",
   "pdb_fixed_path": null,
-  "plddt_score": null,
-  "plddt_mean": null,
-  "structure_resolution": null,
+  "pdb_hash": "b2af213e2ef20f95c349a2159d628321205ad55b64511dd9e891b8a652d8a1a4",
+  "structure_source_url": null,
+  "mutation_site_present": true,
+  "mutation_site_plddt": 95.94,
+  "plddt_mean": 41.59,
+  "plddt_available": true,
+  "mutation_site_confidence_bucket": "high",
+  "numbering_scheme": "uniprot_canonical",
+  "structure_quality_summary": "{\"plddt_mean\": 41.59, \"plddt_site\": 95.94, \"percent_low_confidence\": 82.61, \"num_residues\": 1863}",
+  "preparation_steps": [
+    "validated"
+  ],
   "ddg_foldx": null,
   "ddg_pyrosetta": null,
   "ddg_mean": null,
-  "solvent_accessibility": null,
-  "burial_category": null,
+  "solvent_accessibility_relative": 0.2323649144846507,
+  "burial_category": "core",
   "secondary_structure": null,
   "secondary_structure_name": null,
-  "helix_disruption": null,
-  "functional_site_distance": null,
-  "nearest_functional_site": null,
-  "hbonds_lost": null,
-  "contacts_changed": null,
-  "domain_name": null,
-  "domain_id": null,
-  "domain_criticality": null,
+  "contacts_wt": 31,
+  "hbonds_wt": 5,
+  "packing_density": 2.8181818181818183,
+  "domain_name": "BRCA1 C Terminus (BRCT) domain",
+  "domain_id": "PF00533",
+  "domain_criticality": "critical",
+  "domain_start": 1645,
+  "domain_end": 1723,
   "conservation_score": null,
   "conservation_method": null,
   "num_orthologs": null,
   "position_entropy": null,
   "conserved_across_mammals": null,
-  "ddg_available": null,
-  "ddg_missing_reason": null,
-  "sasa_available": null,
+  "msa_num_sequences": null,
+  "msa_gap_fraction_at_site": null,
+  "msa_column_index": null,
+  "ddg_available": false,
+  "ddg_missing_reason": "tool_missing",
+  "sasa_available": true,
   "sasa_missing_reason": null,
-  "dssp_available": null,
-  "dssp_missing_reason": null,
-  "conservation_available": null,
-  "conservation_missing_reason": null,
-  "domain_available": null,
+  "dssp_available": false,
+  "dssp_missing_reason": "tool_crashed",
+  "conservation_available": false,
+  "conservation_missing_reason": "no_data_available",
+  "domain_available": true,
   "domain_missing_reason": null,
-  "contacts_available": null,
+  "contacts_available": true,
   "contacts_missing_reason": null,
-  "score_ensemble": null,
-  "score_catboost": null,
-  "score_xgboost": null,
-  "score_lightgbm": null,
-  "confidence_lower": null,
-  "confidence_upper": null,
-  "classification": null,
-  "model_agreement": null,
-  "shap_top_features": null,
+  "score_ensemble": 0.6110302738121026,
+  "score_catboost": 0.217201331930754,
+  "score_xgboost": 0.7761445641517639,
+  "score_lightgbm": 0.960255188173021,
+  "confidence_lower": 0.2395033456909691,
+  "confidence_upper": 0.9825572019332361,
+  "classification": "uncertain",
+  "model_agreement": "low",
+  "shap_top_features": [
+    {
+      "feature": "gnomad_frequency",
+      "value": 8.055381366539681e-06,
+      "shap": -1.4508354844821079
+    },
+    {
+      "feature": "solvent_accessibility_relative",
+      "value": 0.2323649144846507,
+      "shap": -0.719868922181876
+    },
+    {
+      "feature": "burial_category_core",
+      "value": 1,
+      "shap": 0.6229837560297751
+    },
+    {
+      "feature": "mutation_site_plddt",
+      "value": 95.94,
+      "shap": 0.5179542321835594
+    },
+    {
+      "feature": "domain_available",
+      "value": true,
+      "shap": -0.4513415616456316
+    },
+    {
+      "feature": "burial_category_surface",
+      "value": 0,
+      "shap": 0.3931507485714347
+    },
+    {
+      "feature": "in_domain",
+      "value": 1,
+      "shap": -0.23765426052273736
+    },
+    {
+      "feature": "contacts_wt",
+      "value": 31,
+      "shap": 0.1659551435374344
+    },
+    {
+      "feature": "packing_density",
+      "value": 2.8181818181818183,
+      "shap": -0.09251882935146212
+    },
+    {
+      "feature": "mutation_site_confidence_bucket_low",
+      "value": 0,
+      "shap": 0.07856025870772855
+    }
+  ],
   "ensemble_version": null,
-  "features_used": null,
-  "acmg_codes": null,
-  "acmg_pm1": null,
+  "features_used": 26,
+  "evidence_tags": [
+    "rarity_evidence",
+    "domain_context"
+  ],
+  "evidence_computational_support": false,
+  "evidence_rarity": true,
+  "evidence_energetics": false,
+  "evidence_domain_context": true,
   "acmg_pm5": null,
-  "acmg_pp3": null,
-  "acmg_pp2": null,
-  "acmg_ps3_proxy": null,
   "variant_id": "BRCA1_p.Arg1699Trp",
   "pipeline_version": "v1.0",
-  "investigation_timestamp": "2026-03-02T22:53:17.548457+00:00",
+  "investigation_timestamp": "2026-03-03T18:07:13.441921+00:00",
   "modules_completed": [
-    "M1"
-  ],
-  "modules_failed": [
+    "M1",
     "M2",
     "M3",
-    "M4.blast",
-    "M4",
     "M5"
   ],
+  "modules_failed": [
+    "M4"
+  ],
   "tool_versions": null,
-  "processing_time_seconds": 7.68,
+  "processing_time_seconds": 31.44,
   "published_to_varisdb": null,
   "submitted_to_clinvar": null,
   "null_reasons": {
     "alphamissense_score": "no_data_available",
-    "alphamissense_class": "no_data_available"
+    "alphamissense_class": "no_data_available",
+    "pdb_fixed_path": "tool_missing",
+    "secondary_structure": "tool_crashed",
+    "secondary_structure_name": "tool_crashed",
+    "ddg_foldx": "tool_missing",
+    "ddg_pyrosetta": "tool_missing",
+    "conservation_score": "no_data_available"
   }
 }

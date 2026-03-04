@@ -11,7 +11,7 @@ class TestSchemaV140:
     """Verify schema v1.4.0 — evidence tags replace ACMG codes."""
 
     def test_schema_version(self):
-        assert RECORD_SCHEMA_VERSION == "1.4.0"
+        assert RECORD_SCHEMA_VERSION == "1.5.0"
 
     def test_evidence_tag_fields_exist(self):
         record = create_variant_record("BRCA1", "p.Arg1699Trp")
@@ -396,7 +396,7 @@ class TestM5Orchestrator:
         np.random.seed(42)
         n = 50
         X = pd.DataFrame({col: np.random.randn(n) for col in [
-            "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility_relative",
+            "ddg_evoef2", "ddg_foldx", "ddg_pyrosetta", "solvent_accessibility_relative",
             "contacts_wt", "hbonds_wt", "packing_density",
             "conservation_score", "mutation_site_plddt",
             "gnomad_frequency", "alphamissense_score",

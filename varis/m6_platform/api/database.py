@@ -204,6 +204,49 @@ def search_variants(session: Session, query: str, limit: int = 20) -> list[dict]
     ]
 
 
+def list_variants(
+    session: Session,
+    page: int = 1,
+    limit: int = 20,
+    sort_by: str = "created_at",
+) -> tuple[list[dict], int]:
+    """List all variants with pagination.
+
+    Args:
+        session: SQLAlchemy session.
+        page: Page number (1-indexed).
+        limit: Maximum number of results per page.
+        sort_by: Column to sort by (default: created_at descending).
+
+    Returns:
+        Tuple of (list of variant summary dicts, total count).
+    """
+    total = session.query(VariantRow).count()
+
+    sort_column = getattr(VariantRow, sort_by, VariantRow.created_at)
+    offset = (page - 1) * limit
+    rows = (
+        session.query(VariantRow)
+        .order_by(sort_column.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    results = [
+        {
+            "variant_id": r.variant_id,
+            "gene": r.gene_symbol,
+            "hgvs_protein": r.hgvs_protein,
+            "classification": r.classification,
+            "score": r.score_ensemble,
+            "clinvar_id": r.clinvar_id,
+            "investigation_timestamp": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+    return results, total
+
+
 def variant_exists(session: Session, variant_id: str) -> bool:
     """Check if a variant already exists in the database.
 

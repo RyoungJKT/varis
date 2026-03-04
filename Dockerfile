@@ -12,7 +12,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     hmmer \
     clustalo \
     wget \
+    g++ \
+    git \
     && rm -rf /var/lib/apt/lists/*
+
+# Optional: compile EvoEF2 from source (MIT licensed)
+ARG INSTALL_EVOEF2=true
+RUN if [ "$INSTALL_EVOEF2" = "true" ]; then \
+    git clone --depth 1 https://github.com/tommyhuangthu/EvoEF2.git /tmp/EvoEF2 && \
+    cd /tmp/EvoEF2 && g++ -O3 -ffast-math -o EvoEF2 src/*.cpp && \
+    cp EvoEF2 /usr/local/bin/ && \
+    cp -r library /usr/local/bin/library && \
+    rm -rf /tmp/EvoEF2; \
+    fi
 
 # Python dependencies
 COPY pyproject.toml .

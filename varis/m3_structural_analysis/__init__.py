@@ -35,6 +35,7 @@ def run(variant_record):
     from varis.m3_structural_analysis.dssp_wrapper import run_dssp
     from varis.m3_structural_analysis.biopython_contacts import run_contacts
     from varis.m3_structural_analysis.interpro_client import run_interpro
+    from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
     from varis.m3_structural_analysis.foldx_wrapper import run_foldx
     from varis.m3_structural_analysis.pyrosetta_wrapper import run_pyrosetta
     from varis.models.variant_record import NullReason
@@ -63,6 +64,7 @@ def run(variant_record):
     # Site-independent tools: always run
     independent_tools = [
         ("M3.interpro", run_interpro),
+        ("M3.evoef2", run_evoef2),
         ("M3.foldx", run_foldx),
         ("M3.pyrosetta", run_pyrosetta),
     ]
@@ -75,10 +77,19 @@ def run(variant_record):
             variant_record.mark_module_failed(name)
 
     # Compute ddg_mean if any DDG values available
-    ddg_values = [v for v in [variant_record.ddg_foldx, variant_record.ddg_pyrosetta]
-                  if v is not None]
+    ddg_values = [v for v in [
+        variant_record.ddg_evoef2,
+        variant_record.ddg_foldx,
+        variant_record.ddg_pyrosetta,
+    ] if v is not None]
     if ddg_values:
         variant_record.ddg_mean = round(sum(ddg_values) / len(ddg_values), 4)
+
+    # Set ddg_available based on whether any DDG tool succeeded
+    if variant_record.ddg_mean is not None:
+        variant_record.set_feature_status("ddg", True)
+    else:
+        variant_record.set_feature_status("ddg", False, NullReason.TOOL_MISSING)
 
     variant_record.mark_module_completed("M3")
     return variant_record

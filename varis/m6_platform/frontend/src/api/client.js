@@ -31,6 +31,12 @@ export async function searchVariants(query) {
   return resp.json();
 }
 
+export async function listVariants(page = 1, limit = 20) {
+  const resp = await fetch(`${API_BASE}/variants?page=${page}&limit=${limit}`);
+  if (!resp.ok) throw new Error(`List failed: ${resp.status}`);
+  return resp.json();
+}
+
 export async function getStats() {
   const resp = await fetch(`${API_BASE}/variants/stats`);
   if (!resp.ok) throw new Error(`Stats failed: ${resp.status}`);

@@ -1,8 +1,9 @@
 """Tests for M3: Structural Analysis — Feature extraction from 3D structure."""
+import subprocess
 import pytest
 import shutil
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from varis.config import STRUCTURES_DIR
 
 BRCA1_PDB = STRUCTURES_DIR / "AF-P38398-F1-model_v6.pdb"
@@ -114,16 +115,117 @@ class TestContacts:
         assert result.contacts_available is False
 
 
+class TestEvoEF2:
+    """Tests for evoef2_wrapper.py — EvoEF2 ΔΔG prediction."""
+
+    def test_evoef2_no_binary(self, m1_completed_record):
+        """EvoEF2 not installed → ddg_evoef2=None, reason tool_missing."""
+        from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        with patch("varis.m3_structural_analysis.evoef2_wrapper._find_binary", return_value=None):
+            result = run_evoef2(m1_completed_record)
+        assert result.ddg_evoef2 is None
+        assert result.null_reasons.get("ddg_evoef2") == "tool_missing"
+
+    def test_evoef2_no_structure(self, m1_completed_record):
+        """No PDB → ddg_evoef2=None, reason upstream_dependency_failed."""
+        from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
+        m1_completed_record.pdb_path = None
+        with patch("varis.m3_structural_analysis.evoef2_wrapper._find_binary", return_value="/usr/local/bin/EvoEF2"):
+            result = run_evoef2(m1_completed_record)
+        assert result.ddg_evoef2 is None
+        assert result.null_reasons.get("ddg_evoef2") == "upstream_dependency_failed"
+
+    def test_evoef2_mutation_string_format(self):
+        """Verify mutation string format: RA1699W;"""
+        from varis.m3_structural_analysis.evoef2_wrapper import _build_mutation_string
+        result = _build_mutation_string("R", "A", 1699, "W")
+        assert result == "RA1699W;"
+
+    def test_evoef2_parse_total_energy(self):
+        """Parse 'Total = -456.78' from ComputeStability output."""
+        from varis.m3_structural_analysis.evoef2_wrapper import _parse_total_energy
+        stdout = "Reference ALA:   12.34\nTotal           =     -456.78\nDone."
+        result = _parse_total_energy(stdout)
+        assert result == pytest.approx(-456.78)
+
+    def test_evoef2_parse_total_energy_not_found(self):
+        """Returns None when Total line is missing."""
+        from varis.m3_structural_analysis.evoef2_wrapper import _parse_total_energy
+        assert _parse_total_energy("no energy line here") is None
+
+    def test_evoef2_timeout(self, m1_completed_record):
+        """Subprocess timeout → ddg_evoef2=None, reason timed_out."""
+        from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+        with patch("varis.m3_structural_analysis.evoef2_wrapper._find_binary", return_value="/usr/local/bin/EvoEF2"):
+            with patch("varis.m3_structural_analysis.evoef2_wrapper.subprocess.run",
+                        side_effect=subprocess.TimeoutExpired("EvoEF2", 120)):
+                result = run_evoef2(m1_completed_record)
+        assert result.ddg_evoef2 is None
+        assert result.null_reasons.get("ddg_evoef2") == "timed_out"
+
+    def test_evoef2_successful_run(self, m1_completed_record):
+        """Mock subprocess calls → verify ddg_evoef2 is computed."""
+        from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
+        import tempfile, os
+
+        m1_completed_record.pdb_path = str(BRCA1_PDB)
+
+        # Create a real PDB file if it doesn't exist (for copy step)
+        pdb_dir = Path(m1_completed_record.pdb_path).parent
+        pdb_dir.mkdir(parents=True, exist_ok=True)
+        if not Path(m1_completed_record.pdb_path).exists():
+            Path(m1_completed_record.pdb_path).write_text("ATOM mock PDB\nEND\n")
+
+        def mock_subprocess_run(cmd, **kwargs):
+            """Mock EvoEF2 subprocess calls."""
+            cwd = Path(kwargs.get("cwd", "."))
+            cmd_str = " ".join(cmd)
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_result.stderr = ""
+
+            if "RepairStructure" in cmd_str:
+                # Create the repaired PDB file
+                for f in cwd.glob("*.pdb"):
+                    repaired = cwd / f"{f.stem}_Repair.pdb"
+                    repaired.write_text("ATOM repaired\nEND\n")
+                    break
+                mock_result.stdout = "Repair done"
+            elif "BuildMutant" in cmd_str:
+                # Create the mutant PDB file
+                for f in cwd.glob("*_Repair.pdb"):
+                    mutant = cwd / f"{f.stem}_Model_0001.pdb"
+                    mutant.write_text("ATOM mutant\nEND\n")
+                    break
+                mock_result.stdout = "Mutant built"
+            elif "ComputeStability" in cmd_str:
+                if "Model_0001" in cmd_str:
+                    mock_result.stdout = "Total           =     -450.00\n"
+                else:
+                    mock_result.stdout = "Total           =     -453.50\n"
+            return mock_result
+
+        with patch("varis.m3_structural_analysis.evoef2_wrapper._find_binary", return_value="/usr/local/bin/EvoEF2"):
+            with patch("varis.m3_structural_analysis.evoef2_wrapper.subprocess.run", side_effect=mock_subprocess_run):
+                result = run_evoef2(m1_completed_record)
+
+        assert result.ddg_evoef2 is not None
+        # DDG = mutant (-450.00) - wt (-453.50) = 3.50
+        assert result.ddg_evoef2 == pytest.approx(3.5, abs=0.01)
+
+
 class TestFoldXStub:
     """Tests for foldx_wrapper.py — ΔΔG stub."""
 
     def test_foldx_no_binary(self, m1_completed_record):
-        """FoldX not installed → ddg_available=False, reason tool_missing."""
+        """FoldX not installed → ddg_foldx=None, reason tool_missing."""
         from varis.m3_structural_analysis.foldx_wrapper import run_foldx
         m1_completed_record.pdb_path = str(BRCA1_PDB)
         result = run_foldx(m1_completed_record)
-        assert result.ddg_available is False
-        assert result.ddg_missing_reason == "tool_missing"
+        assert result.ddg_foldx is None
+        assert result.null_reasons.get("ddg_foldx") == "tool_missing"
 
 
 class TestPyRosettaStub:
@@ -227,6 +329,8 @@ class TestM3Orchestrator:
         assert result.sasa_available is False
         assert result.dssp_available is False
         assert result.contacts_available is False
+        # ddg_available is set by orchestrator based on ddg_mean
+        assert result.ddg_available is not None
         # M3 should still complete
         assert "M3" in result.modules_completed
 

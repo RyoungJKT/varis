@@ -35,6 +35,7 @@ from varis.m6_platform.api.database import (
     init_db,
     get_variant_record,
     search_variants,
+    list_variants,
     get_variant_count,
     get_classification_counts,
     get_gene_count,
@@ -166,8 +167,10 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
         session = session_factory()
         try:
             if not q:
-                return SearchResponse(results=[], total=0, page=page, limit=limit)
-            results = search_variants(session, q, limit=limit)
+                results, total = list_variants(session, page=page, limit=limit)
+            else:
+                results = search_variants(session, q, limit=limit)
+                total = len(results)
             summaries = [
                 VariantSummary(
                     variant_id=r["variant_id"],
@@ -180,7 +183,7 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
                 )
                 for r in results
             ]
-            return SearchResponse(results=summaries, total=len(summaries), page=page, limit=limit)
+            return SearchResponse(results=summaries, total=total, page=page, limit=limit)
         finally:
             session.close()
 

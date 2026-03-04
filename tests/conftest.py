@@ -53,9 +53,10 @@ def fully_populated_record():
     record.numbering_scheme = "uniprot"
     record.structure_quality_summary = "High confidence AlphaFold structure"
     record.preparation_steps = ["download", "validate_residue"]
+    record.ddg_evoef2 = 3.2
     record.ddg_foldx = 3.7
     record.ddg_pyrosetta = 4.1
-    record.ddg_mean = 3.9
+    record.ddg_mean = 3.6667
     record.solvent_accessibility_relative = 0.03
     record.burial_category = "core"
     record.secondary_structure = "H"

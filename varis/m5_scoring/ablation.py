@@ -28,7 +28,7 @@ ABLATION_GROUPS = {
         "flag": "conservation_available",
     },
     "ddg": {
-        "features": ["ddg_foldx", "ddg_pyrosetta"],
+        "features": ["ddg_evoef2", "ddg_foldx", "ddg_pyrosetta"],
         "flag": "ddg_available",
     },
     "sasa": {

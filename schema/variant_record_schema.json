@@ -82,6 +82,7 @@
     "plddt_mean": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
     "structure_resolution": {"type": ["string", "null"]},
 
+    "ddg_evoef2": {"type": ["number", "null"], "description": "kcal/mol from EvoEF2, positive = destabilizing"},
     "ddg_foldx": {"type": ["number", "null"], "description": "kcal/mol, positive = destabilizing"},
     "ddg_pyrosetta": {"type": ["number", "null"]},
     "ddg_mean": {"type": ["number", "null"]},

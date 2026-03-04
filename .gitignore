@@ -16,11 +16,12 @@ env/
 .env
 
 # Data (large files — stored separately)
-data/structures/*.pdb
-data/structures/*.cif
-data/models/*.pkl
-data/models/*.joblib
-data/models/*.cbm
+data/structures/
+data/models/
+data/training/
+data/benchmarks/
+data/conservation/
+data/variant_summary.txt.gz
 data/logs/
 
 # IDE
@@ -32,6 +33,10 @@ data/logs/
 # OS
 .DS_Store
 Thumbs.db
+*.png
+
+# Vercel
+.vercel/
 
 # Notebooks checkpoints
 .ipynb_checkpoints/

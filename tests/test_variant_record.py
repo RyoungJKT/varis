@@ -49,7 +49,7 @@ class TestFeatureExtraction:
         assert features["conservation_score"] == 1.0
 
     def test_count_available_features_full(self, fully_populated_record):
-        assert fully_populated_record.count_available_features() == 15
+        assert fully_populated_record.count_available_features() == 16
 
     def test_count_available_features_empty(self, empty_record):
         assert empty_record.count_available_features() == 0

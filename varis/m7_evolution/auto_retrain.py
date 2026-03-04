@@ -1,4 +1,4 @@
-"""Auto-Retrain (Loop 1) — Fully autonomous monthly model retraining with governance.
+"""Auto-Retrain (Loop 1) — Fully autonomous weekly model retraining with governance.
 
 Scans ClinVar for newly expert-reviewed variants, runs them through the pipeline,
 retrains all three models, compares metrics, runs regression tests, and deploys
@@ -11,7 +11,7 @@ Release governance:
   - Every decision is recorded in the Evolution Log with metric deltas
 
 Priority: 2 (build second — most impactful self-evolution loop)
-Frequency: Monthly (triggered by ClinVar update detection)
+Frequency: Weekly (triggered by ClinVar update detection)
 Autonomy: Fully autonomous — no human intervention required
 """
 import json

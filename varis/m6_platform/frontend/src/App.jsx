@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import SearchPage from "./pages/SearchPage";
+import VariantListPage from "./pages/VariantListPage";
 import InvestigationPage from "./pages/InvestigationPage";
 import JobStatusPage from "./pages/JobStatusPage";
 
@@ -17,6 +18,7 @@ export default function App() {
         </header>
         <Routes>
           <Route path="/" element={<SearchPage />} />
+          <Route path="/variants" element={<VariantListPage />} />
           <Route path="/variant/:variantId" element={<InvestigationPage />} />
           <Route path="/jobs/:jobId" element={<JobStatusPage />} />
         </Routes>

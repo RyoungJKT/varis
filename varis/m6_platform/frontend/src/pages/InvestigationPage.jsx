@@ -70,10 +70,8 @@ export default function InvestigationPage() {
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: 3D viewer */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="h-96">
-            <MolstarViewer structure={data.structure} />
-          </div>
+        <div className="bg-white rounded-lg shadow overflow-hidden h-96">
+          <MolstarViewer structure={data.structure} />
         </div>
 
         {/* Right: Panels */}

@@ -1,0 +1,100 @@
+name: Weekly Auto-Retrain
+
+on:
+  schedule:
+    # Every Monday at 3am UTC
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force retrain even if no new ClinVar data"
+        required: false
+        default: "false"
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dssp g++ git
+
+      - name: Compile EvoEF2
+        run: |
+          git clone --depth 1 https://github.com/tommyhuangthu/EvoEF2.git /tmp/EvoEF2
+          cd /tmp/EvoEF2 && g++ -O3 -ffast-math -o EvoEF2 src/*.cpp
+          sudo cp EvoEF2 /usr/local/bin/
+          sudo cp -r library /usr/local/bin/library
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[all]"
+
+      - name: Restore model cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/models
+            data/training
+            data/structures
+            data/benchmarks
+          key: varis-retrain-${{ github.run_number }}
+          restore-keys: |
+            varis-retrain-
+
+      - name: Run retrain loop
+        run: python -m varis.m7_evolution retrain
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          CLINVAR_API_KEY: ${{ secrets.CLINVAR_API_KEY }}
+          EVOEF2_BINARY: /usr/local/bin/EvoEF2
+
+      - name: Run benchmark validation
+        run: |
+          python -c "
+          from varis.m5_scoring.benchmarks import run_benchmarks
+          from pathlib import Path
+          import json
+          results = run_benchmarks(Path('data/models'))
+          print(json.dumps(results, indent=2))
+          with open('data/models/benchmark_results.json', 'w') as f:
+              json.dump(results, f, indent=2)
+          "
+        env:
+          EVOEF2_BINARY: /usr/local/bin/EvoEF2
+
+      - name: Save model cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/models
+            data/training
+            data/structures
+            data/benchmarks
+          key: varis-retrain-${{ github.run_number }}
+
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-v${{ github.run_number }}
+          path: |
+            data/models/catboost_model.cbm
+            data/models/xgboost_model.json
+            data/models/lightgbm_model.txt
+            data/models/calibrator.pkl
+            data/models/feature_columns.json
+            data/models/training_manifest.json
+            data/models/training_metadata.json
+            data/models/benchmark_results.json
+          retention-days: 90
