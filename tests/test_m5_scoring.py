@@ -455,7 +455,18 @@ class TestBenchmarks:
         X = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)})
         y = pd.Series((X["f1"] > 0).astype(int))
         train_ensemble(X, y, output_dir=tmp_path)
-        results = run_benchmarks(tmp_path, "tests/benchmark_variants.json")
+
+        # Mock _get_benchmark_record to avoid running the full M1-M4 pipeline
+        mock_record = create_variant_record("BRCA1", "p.Arg1699Trp")
+        mock_record.ddg_evoef2 = 5.0
+        mock_record.solvent_accessibility_relative = 0.3
+        mock_record.conservation_score = 0.9
+        mock_record.gnomad_frequency = 0.0001
+        with patch(
+            "varis.m5_scoring.benchmarks._get_benchmark_record",
+            return_value=mock_record,
+        ):
+            results = run_benchmarks(tmp_path, "tests/benchmark_variants.json")
         assert isinstance(results, dict)
         assert "variants" in results
 
