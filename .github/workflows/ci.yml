@@ -34,9 +34,8 @@ jobs:
       - name: Lint with ruff
         run: ruff check varis/ tests/
 
-      - name: Type check with mypy
-        run: mypy varis/ --ignore-missing-imports
-        continue-on-error: true
+      - name: Type check with mypy (informational)
+        run: mypy varis/ --ignore-missing-imports || echo "mypy found issues (non-blocking)"
 
       - name: Run tests
         run: pytest tests/ -v --timeout=120 --tb=short
