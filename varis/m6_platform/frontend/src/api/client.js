@@ -42,3 +42,15 @@ export async function getStats() {
   if (!resp.ok) throw new Error(`Stats failed: ${resp.status}`);
   return resp.json();
 }
+
+export async function downloadReport(variantId) {
+  const resp = await fetch(`${API_BASE}/reports/${encodeURIComponent(variantId)}`);
+  if (!resp.ok) throw new Error(`Report generation failed: ${resp.status}`);
+  return resp;
+}
+
+export async function getClinvarSubmission(variantId) {
+  const resp = await fetch(`${API_BASE}/clinvar-submissions/${encodeURIComponent(variantId)}`);
+  if (!resp.ok) throw new Error(`ClinVar preview failed: ${resp.status}`);
+  return resp.json();
+}
