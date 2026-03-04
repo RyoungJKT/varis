@@ -17,7 +17,7 @@ from typing import Optional
 
 import httpx
 
-from varis.models.variant_record import NullReason, VariantRecord
+from varis.models.variant_record import VariantRecord
 
 logger = logging.getLogger(__name__)
 

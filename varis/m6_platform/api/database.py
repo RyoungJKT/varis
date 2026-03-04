@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, String, Float, Integer, Text, DateTime, create_engine
+from sqlalchemy import Column, String, Float, Text, DateTime, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 logger = logging.getLogger(__name__)

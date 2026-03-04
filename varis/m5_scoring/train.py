@@ -14,9 +14,6 @@ Usage:
 """
 
 import argparse
-import copy
-import gzip
-import json
 import logging
 import re
 import time
@@ -35,7 +32,7 @@ from varis.config import (
     MODELS_DIR,
     PIPELINE_VERSION,
 )
-from varis.models.variant_record import NullReason, VariantRecord, create_variant_record
+from varis.models.variant_record import VariantRecord, create_variant_record
 
 logger = logging.getLogger(__name__)
 

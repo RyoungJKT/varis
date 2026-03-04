@@ -9,7 +9,6 @@ Sets: dssp_available, dssp_missing_reason.
 
 import logging
 import shutil
-from pathlib import Path
 from typing import Optional
 
 from varis.models.variant_record import NullReason, VariantRecord

@@ -8,7 +8,6 @@ Frequency: Daily scan, weekly proposals
 Autonomy: Semi-autonomous (AI proposes, system benchmarks or human reviews)
 """
 import logging
-from varis.m7_evolution.evolution_log import log_event, EVENT_TOOL_DISCOVERY, EVENT_LLM_ASSESSMENT
 logger = logging.getLogger(__name__)
 
 # Sources to monitor

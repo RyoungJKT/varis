@@ -1,2 +1,2 @@
 """Data models for Varis."""
-from varis.models.variant_record import VariantRecord, create_variant_record
+from varis.models.variant_record import VariantRecord as VariantRecord, create_variant_record as create_variant_record

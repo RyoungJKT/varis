@@ -4,7 +4,7 @@ import pytest
 import math
 from unittest.mock import MagicMock, patch
 from varis.models.variant_record import (
-    VariantRecord, create_variant_record, NullReason, RECORD_SCHEMA_VERSION,
+    create_variant_record, NullReason, RECORD_SCHEMA_VERSION,
 )
 
 

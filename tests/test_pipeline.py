@@ -1,7 +1,6 @@
 """Tests for the full pipeline orchestration."""
 
 import pytest
-from varis.models.variant_record import create_variant_record
 
 
 class TestPipelineGracefulDegradation:

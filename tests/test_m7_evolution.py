@@ -10,7 +10,6 @@ from varis.m7_evolution.auto_retrain import (
     evaluate_deploy_gate,
     acquire_lock,
     release_lock,
-    run_benchmarks_for_model,
     run_retrain_loop,
 )
 from varis.m7_evolution.model_archive import (
@@ -654,7 +653,7 @@ class TestCLI:
 
     def test_cmd_log(self, tmp_path: Path, capsys) -> None:
         """Log command prints events."""
-        from varis.m7_evolution.__main__ import cmd_log, build_parser, _get_log_db
+        from varis.m7_evolution.__main__ import cmd_log, build_parser
         from varis.m7_evolution.evolution_log import init_evolution_log, log_event
 
         db_url = f"sqlite:///{tmp_path}/test_cli.db"

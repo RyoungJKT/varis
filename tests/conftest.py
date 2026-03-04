@@ -1,6 +1,6 @@
 """Shared test fixtures for the Varis test suite."""
 import pytest
-from varis.models.variant_record import VariantRecord, create_variant_record
+from varis.models.variant_record import create_variant_record
 
 @pytest.fixture
 def empty_record():

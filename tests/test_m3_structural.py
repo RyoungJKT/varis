@@ -168,7 +168,6 @@ class TestEvoEF2:
     def test_evoef2_successful_run(self, m1_completed_record):
         """Mock subprocess calls → verify ddg_evoef2 is computed."""
         from varis.m3_structural_analysis.evoef2_wrapper import run_evoef2
-        import tempfile, os
 
         m1_completed_record.pdb_path = str(BRCA1_PDB)
 

@@ -7,7 +7,6 @@ Primary: WeasyPrint (HTML → PDF). Fallback: HTML-only export.
 """
 
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -27,8 +26,6 @@ def generate_html_report(variant_record: VariantRecord) -> str:
     """
     r = variant_record
     variant_id = r.variant_id or f"{r.gene_symbol}_{r.hgvs_protein}"
-    timestamp = r.investigation_timestamp or datetime.now(timezone.utc).isoformat()
-
     classification_color = {
         "likely_pathogenic": "#dc2626",
         "uncertain": "#d97706",

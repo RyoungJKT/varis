@@ -5,7 +5,6 @@ Mocks external API calls (InterPro) for offline testing.
 """
 import pytest
 from unittest.mock import MagicMock, patch
-from pathlib import Path
 
 from varis.config import STRUCTURES_DIR
 from varis.models.variant_record import create_variant_record

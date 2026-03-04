@@ -276,7 +276,6 @@ def run_benchmarks_for_model(model_dir: Path) -> dict:
         Returns empty dict if model cannot be loaded or benchmarks fail.
     """
     try:
-        from varis.m5_scoring.ensemble import load_ensemble, predict_from_models
         from varis.m5_scoring.benchmarks import run_benchmarks
 
         model_dir = Path(model_dir)
@@ -422,7 +421,7 @@ def run_retrain_loop(
         # ── Step 3: Select training variants ──
         logger.info("Phase A: Selecting training variants from ClinVar")
         try:
-            manifest_df = _self.select_training_variants()
+            _self.select_training_variants()
         except Exception as e:
             reason = f"Variant selection failed: {e}"
             logger.error(reason)

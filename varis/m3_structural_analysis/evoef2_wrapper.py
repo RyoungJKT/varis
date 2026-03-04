@@ -211,7 +211,7 @@ def _compute_ddg(
                 binary,
                 "--command=BuildMutant",
                 f"--pdb={repaired_pdb}",
-                f"--mutant_file=individual_list.txt",
+                "--mutant_file=individual_list.txt",
             ],
             cwd=str(tmpdir),
             capture_output=True,

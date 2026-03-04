@@ -12,7 +12,6 @@ Requires: pdbfixer, openmm (optional dependencies — gracefully handles ImportE
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from varis.models.variant_record import NullReason, VariantRecord
 

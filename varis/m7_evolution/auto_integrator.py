@@ -10,7 +10,6 @@ Priority: 6 (stretch goal)
 Autonomy: Partially autonomous
 """
 import logging
-from varis.m7_evolution.evolution_log import log_event, EVENT_TOOL_INTEGRATION
 logger = logging.getLogger(__name__)
 
 def attempt_integration(proposal: dict) -> dict:

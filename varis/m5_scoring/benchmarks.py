@@ -11,7 +11,6 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 from varis.m5_scoring.ensemble import load_ensemble, predict_from_models
 

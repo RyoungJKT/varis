@@ -2,7 +2,6 @@
 import pytest
 import time
 from unittest.mock import patch, MagicMock
-from pydantic import ValidationError
 
 
 class TestPydanticModels:
@@ -48,7 +47,7 @@ class TestDatabase:
     @pytest.fixture
     def db_session(self, tmp_path):
         """Create an in-memory SQLite session for testing."""
-        from varis.m6_platform.api.database import init_db, get_session
+        from varis.m6_platform.api.database import init_db
         engine, SessionLocal = init_db(f"sqlite:///{tmp_path}/test.db")
         session = SessionLocal()
         yield session

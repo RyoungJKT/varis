@@ -1,9 +1,9 @@
 """Tests for M5: ML Scoring Engine."""
 import pytest
 import numpy as np
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from varis.models.variant_record import (
-    VariantRecord, create_variant_record, RECORD_SCHEMA_VERSION,
+    create_variant_record, RECORD_SCHEMA_VERSION,
 )
 
 
