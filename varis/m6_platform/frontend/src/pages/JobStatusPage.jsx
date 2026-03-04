@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getJobStatus } from "../api/client";
+import ErrorBanner from "../components/ErrorBanner";
 
 const PIPELINE_STEPS = [
   "M1: Data Ingestion",
@@ -59,11 +60,8 @@ export default function JobStatusPage() {
 
   if (error) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-red-700 mb-2">Error</h2>
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
+      <div className="max-w-lg mx-auto px-4 py-16">
+        <ErrorBanner error={error} onDismiss={() => setError(null)} />
       </div>
     );
   }

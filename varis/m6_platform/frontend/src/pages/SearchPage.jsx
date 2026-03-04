@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { submitInvestigation, searchVariants, listVariants, getStats } from "../api/client";
+import ErrorBanner from "../components/ErrorBanner";
 
 export default function SearchPage() {
   const navigate = useNavigate();
@@ -103,8 +104,8 @@ export default function SearchPage() {
           </div>
         </div>
         {error && (
-          <div className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded px-3 py-2">
-            {error}
+          <div className="mb-3">
+            <ErrorBanner error={error} onDismiss={() => setError(null)} />
           </div>
         )}
         <button
