@@ -318,3 +318,22 @@ class TestAPIEndpoints:
         """GET /api/v1/clinvar-submissions/{id} returns 404 for unknown variant."""
         resp = client.get("/api/v1/clinvar-submissions/NONEXISTENT")
         assert resp.status_code == 404
+
+    def test_report_download(self, client, fully_populated_record):
+        """GET /api/v1/reports/{id} returns HTML report."""
+        from varis.m6_platform.api.database import save_variant_record
+        session = client.app.state.session_factory()
+        try:
+            save_variant_record(session, fully_populated_record)
+        finally:
+            session.close()
+
+        resp = client.get(f"/api/v1/reports/{fully_populated_record.variant_id}")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
+        assert "Variant Investigation Report" in resp.text
+
+    def test_report_download_not_found(self, client):
+        """GET /api/v1/reports/{id} returns 404 for unknown variant."""
+        resp = client.get("/api/v1/reports/NONEXISTENT")
+        assert resp.status_code == 404

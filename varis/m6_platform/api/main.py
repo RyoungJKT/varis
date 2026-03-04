@@ -8,6 +8,7 @@ Endpoints:
   GET  /api/v1/variants/stats           - Database statistics
   GET  /api/v1/jobs/{job_id}            - Job status
   GET  /api/v1/clinvar-submissions/{id} - ClinVar submission preview
+  GET  /api/v1/reports/{id}            - HTML investigation report download
   GET  /api/v1/structures/{id}         - PDB structure file
   GET  /api/v1/evolution-log            - Evolution log events
 """
@@ -21,7 +22,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from varis.m6_platform.api.models import (
     InvestigationResponse,
@@ -254,6 +255,39 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
                 "variant_id": variant_id,
                 "submission": submission,
             }
+        finally:
+            session.close()
+
+    # === Report Download ===
+
+    @app.get("/api/v1/reports/{variant_id}")
+    def download_report(variant_id: str):
+        """Generate and return an HTML investigation report.
+
+        Args:
+            variant_id: The variant identifier.
+
+        Returns:
+            HTML report as downloadable file.
+        """
+        session = session_factory()
+        try:
+            record_dict = get_variant_record(session, variant_id)
+            if record_dict is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Variant '{variant_id}' not found",
+                )
+            record = VariantRecord.from_dict(record_dict)
+
+            from varis.m6_platform.api.report_generator import generate_html_report
+            html = generate_html_report(record)
+            return HTMLResponse(
+                content=html,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{variant_id}_report.html"',
+                },
+            )
         finally:
             session.close()
 
