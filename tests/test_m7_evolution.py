@@ -733,3 +733,349 @@ class TestM7Run:
 
         assert isinstance(result, dict)
         assert result["completed"] is False
+
+
+class TestToolScout:
+    """Tests for Tool Scout (Loop 2) — discovery, scoring, and deduplication."""
+
+    # --- Scoring tests ---
+
+    def test_score_candidate_high_relevance(self) -> None:
+        """Candidate with DDG/SASA/conservation keywords scores >= 3."""
+        from varis.m7_evolution.tool_scout import score_candidate
+
+        candidate = {
+            "name": "ddg-predictor",
+            "description": "Predicts delta-g and SASA for protein stability analysis with conservation scores",
+            "keywords": ["ddg", "sasa", "conservation"],
+            "stars": 50,
+            "updated": "2020-01-01",
+        }
+        score = score_candidate(candidate)
+        assert score >= 3
+
+    def test_score_candidate_low_relevance(self) -> None:
+        """Candidate with unrelated keywords (web/flask) scores < 3."""
+        from varis.m7_evolution.tool_scout import score_candidate
+
+        candidate = {
+            "name": "flask-admin",
+            "description": "Admin panel for Flask web applications",
+            "keywords": ["web", "flask", "admin"],
+            "stars": 5000,
+            "updated": "2020-01-01",
+        }
+        score = score_candidate(candidate)
+        assert score < 3
+
+    def test_score_candidate_recency_bonus(self) -> None:
+        """Recent candidate scores higher than an old one with same keywords."""
+        from datetime import datetime, timedelta
+        from varis.m7_evolution.tool_scout import score_candidate
+
+        recent_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        old_date = "2020-01-01"
+
+        base = {
+            "name": "stability-tool",
+            "description": "Protein stability predictor",
+            "keywords": ["stability"],
+            "stars": 50,
+        }
+
+        recent_candidate = {**base, "updated": recent_date}
+        old_candidate = {**base, "updated": old_date}
+
+        assert score_candidate(recent_candidate) > score_candidate(old_candidate)
+
+    # --- Scanner tests ---
+
+    def test_scan_pypi_returns_candidates(self) -> None:
+        """Mock httpx, verify scan_pypi returns list of candidate dicts."""
+        from varis.m7_evolution.tool_scout import scan_pypi
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "name": "bio-stability",
+                    "version": "1.0.0",
+                    "description": "Protein stability tool",
+                },
+            ],
+        }
+
+        with patch("varis.m7_evolution.tool_scout.httpx.get", return_value=mock_response):
+            results = scan_pypi("protein stability")
+
+        assert isinstance(results, list)
+        assert len(results) >= 1
+        assert results[0]["name"] == "bio-stability"
+        assert results[0]["source"] == "pypi"
+
+    def test_scan_github_returns_candidates(self) -> None:
+        """Mock httpx, verify scan_github returns candidate with stars/source."""
+        from varis.m7_evolution.tool_scout import scan_github
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "items": [
+                {
+                    "name": "variant-predictor",
+                    "full_name": "user/variant-predictor",
+                    "html_url": "https://github.com/user/variant-predictor",
+                    "description": "Variant effect predictor tool",
+                    "stargazers_count": 250,
+                    "topics": ["bioinformatics", "variant"],
+                    "updated_at": "2026-02-01T00:00:00Z",
+                },
+            ],
+        }
+
+        with patch("varis.m7_evolution.tool_scout.httpx.get", return_value=mock_response):
+            results = scan_github("variant effect")
+
+        assert isinstance(results, list)
+        assert len(results) >= 1
+        assert results[0]["source"] == "github"
+        assert results[0]["stars"] == 250
+        assert results[0]["name"] == "variant-predictor"
+
+    def test_scan_sources_aggregates(self) -> None:
+        """Mock all three scanners, verify aggregation."""
+        from varis.m7_evolution.tool_scout import scan_sources
+
+        pypi_result = [{"name": "tool-a", "source": "pypi", "description": "A"}]
+        github_result = [{"name": "tool-b", "source": "github", "description": "B"}]
+        biorxiv_result = [{"name": "tool-c", "source": "biorxiv", "description": "C"}]
+
+        with patch("varis.m7_evolution.tool_scout.scan_pypi", return_value=pypi_result), \
+             patch("varis.m7_evolution.tool_scout.scan_github", return_value=github_result), \
+             patch("varis.m7_evolution.tool_scout.scan_biorxiv", return_value=biorxiv_result):
+            results = scan_sources()
+
+        assert isinstance(results, list)
+        assert len(results) == 3
+        names = {r["name"] for r in results}
+        assert names == {"tool-a", "tool-b", "tool-c"}
+
+    # --- Orchestrator tests ---
+
+    def test_run_scout_loop(self, tmp_path: Path) -> None:
+        """Mock scan_sources, verify scoring + logging to evolution log."""
+        from varis.m7_evolution.evolution_log import init_evolution_log, get_log
+        from varis.m7_evolution.tool_scout import run_scout_loop
+
+        db_url = f"sqlite:///{tmp_path}/scout_test.db"
+        log_db = init_evolution_log(db_url)
+
+        candidates = [
+            {
+                "name": "ddg-analyzer",
+                "source": "pypi",
+                "url": "https://pypi.org/project/ddg-analyzer/",
+                "description": "Delta-G stability prediction with conservation and SASA analysis",
+                "keywords": ["ddg", "stability", "conservation", "sasa"],
+                "stars": 200,
+                "updated": "2026-02-15",
+            },
+            {
+                "name": "flask-login",
+                "source": "pypi",
+                "url": "https://pypi.org/project/flask-login/",
+                "description": "User authentication for Flask",
+                "keywords": ["web", "flask"],
+                "stars": 3000,
+                "updated": "2026-01-01",
+            },
+        ]
+
+        with patch("varis.m7_evolution.tool_scout.scan_sources", return_value=candidates):
+            result = run_scout_loop(log_db=log_db)
+
+        assert result["scanned"] == 2
+        # Only the high-scoring ddg-analyzer should be logged
+        assert result["logged"] >= 1
+        # Verify it was actually written to the evolution log
+        events = get_log(log_db, event_type="TOOL_DISCOVERY")
+        assert len(events) >= 1
+        assert any("ddg-analyzer" in str(e.get("details", "")) for e in events)
+
+    def test_run_scout_loop_deduplicates(self, tmp_path: Path) -> None:
+        """Run twice with same candidates, verify only logged once."""
+        from varis.m7_evolution.evolution_log import init_evolution_log, get_log
+        from varis.m7_evolution.tool_scout import run_scout_loop
+
+        db_url = f"sqlite:///{tmp_path}/scout_dedup.db"
+        log_db = init_evolution_log(db_url)
+
+        candidates = [
+            {
+                "name": "stability-predictor",
+                "source": "github",
+                "url": "https://github.com/user/stability-predictor",
+                "description": "Protein stability and delta-g prediction with conservation",
+                "keywords": ["stability", "ddg", "conservation"],
+                "stars": 150,
+                "updated": "2026-02-01",
+            },
+        ]
+
+        with patch("varis.m7_evolution.tool_scout.scan_sources", return_value=candidates):
+            result1 = run_scout_loop(log_db=log_db)
+            result2 = run_scout_loop(log_db=log_db)
+
+        # First run should log it
+        assert result1["logged"] >= 1
+        # Second run should deduplicate and not log again
+        assert result2["logged"] == 0
+
+        # Verify only one TOOL_DISCOVERY event in the DB
+        events = get_log(log_db, event_type="TOOL_DISCOVERY")
+        stability_events = [
+            e for e in events if "stability-predictor" in str(e.get("details", ""))
+        ]
+        assert len(stability_events) == 1
+
+
+class TestAutoIntegrator:
+    """Tests for Auto-Integrator (Loop 3) — install, probe, benchmark, orchestrator."""
+
+    # --- Install tests ---
+
+    def test_attempt_install_success(self) -> None:
+        """Mock subprocess.run returning 0, verify True and 2 calls (dry-run + install)."""
+        from varis.m7_evolution.auto_integrator import attempt_install
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        with patch("varis.m7_evolution.auto_integrator.subprocess.run", return_value=mock_result) as mock_run:
+            result = attempt_install("some-package")
+
+        assert result is True
+        assert mock_run.call_count == 2  # dry-run + actual install
+
+    def test_attempt_install_failure(self) -> None:
+        """Mock subprocess.run returning 1 on dry-run, verify False."""
+        from varis.m7_evolution.auto_integrator import attempt_install
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+
+        with patch("varis.m7_evolution.auto_integrator.subprocess.run", return_value=mock_result) as mock_run:
+            result = attempt_install("nonexistent-package")
+
+        assert result is False
+
+    # --- Probe tests ---
+
+    def test_probe_tool_finds_callable(self) -> None:
+        """Mock importlib.import_module with fake module that has `predict`, verify info dict."""
+        from varis.m7_evolution.auto_integrator import probe_tool
+
+        fake_module = MagicMock()
+        fake_module.__dir__ = lambda self: ["predict", "SomeClass", "__version__"]
+        fake_module.predict = lambda x: x  # callable
+        fake_module.SomeClass = type("SomeClass", (), {})
+        fake_module.__version__ = "1.0.0"
+
+        with patch("varis.m7_evolution.auto_integrator.importlib.import_module", return_value=fake_module):
+            info = probe_tool("some_package")
+
+        assert info is not None
+        assert info["package"] == "some_package"
+        assert "predict" in info["callables"]
+        assert "module_attrs" in info
+
+    def test_probe_tool_import_fails(self) -> None:
+        """Mock ImportError, verify None is returned."""
+        from varis.m7_evolution.auto_integrator import probe_tool
+
+        with patch(
+            "varis.m7_evolution.auto_integrator.importlib.import_module",
+            side_effect=ImportError("No module named 'nonexistent'"),
+        ):
+            info = probe_tool("nonexistent")
+
+        assert info is None
+
+    # --- Benchmark tests ---
+
+    def test_benchmark_new_feature_improves(self) -> None:
+        """Current roc_auc=0.850, candidate=0.860, verify INTEGRATE."""
+        from varis.m7_evolution.auto_integrator import benchmark_new_feature
+
+        current = {"roc_auc": 0.850, "pr_auc": 0.820}
+        candidate = {"roc_auc": 0.860, "pr_auc": 0.825}
+
+        result = benchmark_new_feature(current, candidate)
+
+        assert result["decision"] == "INTEGRATE"
+        assert "metric_deltas" in result
+        assert result["metric_deltas"]["roc_auc"] == pytest.approx(0.010, abs=1e-6)
+
+    def test_benchmark_new_feature_regresses(self) -> None:
+        """Candidate worse, verify REJECT."""
+        from varis.m7_evolution.auto_integrator import benchmark_new_feature
+
+        current = {"roc_auc": 0.850, "pr_auc": 0.820}
+        candidate = {"roc_auc": 0.840, "pr_auc": 0.810}
+
+        result = benchmark_new_feature(current, candidate)
+
+        assert result["decision"] == "REJECT"
+        assert "metric_deltas" in result
+
+    # --- Orchestrator tests ---
+
+    def test_attempt_integration_success(self, tmp_path: Path) -> None:
+        """Mock install+probe+benchmark, verify INTEGRATE + evolution log event."""
+        from varis.m7_evolution.auto_integrator import attempt_integration
+        from varis.m7_evolution.evolution_log import init_evolution_log, get_log
+
+        db_url = f"sqlite:///{tmp_path}/integrator_test.db"
+        log_db = init_evolution_log(db_url)
+
+        proposal = {"name": "test-tool", "package": "test_tool"}
+        current_metrics = {"roc_auc": 0.850, "pr_auc": 0.820}
+        candidate_metrics = {"roc_auc": 0.860, "pr_auc": 0.825}
+
+        with patch("varis.m7_evolution.auto_integrator.attempt_install", return_value=True), \
+             patch("varis.m7_evolution.auto_integrator.probe_tool", return_value={
+                 "package": "test_tool",
+                 "callables": ["predict"],
+                 "module_attrs": 5,
+             }):
+            result = attempt_integration(
+                proposal,
+                log_db=log_db,
+                current_metrics=current_metrics,
+                candidate_metrics=candidate_metrics,
+            )
+
+        assert result["decision"] == "INTEGRATE"
+        assert result["name"] == "test-tool"
+
+        # Verify evolution log event was written
+        events = get_log(log_db, event_type="TOOL_INTEGRATION")
+        assert len(events) >= 1
+        assert any("test-tool" in str(e.get("details", "")) for e in events)
+
+    def test_attempt_integration_install_fails(self, tmp_path: Path) -> None:
+        """Mock install failure, verify REJECT with 'install' in reason."""
+        from varis.m7_evolution.auto_integrator import attempt_integration
+        from varis.m7_evolution.evolution_log import init_evolution_log
+
+        db_url = f"sqlite:///{tmp_path}/integrator_fail.db"
+        log_db = init_evolution_log(db_url)
+
+        proposal = {"name": "bad-tool", "package": "bad_tool"}
+
+        with patch("varis.m7_evolution.auto_integrator.attempt_install", return_value=False):
+            result = attempt_integration(proposal, log_db=log_db)
+
+        assert result["decision"] == "REJECT"
+        assert "install" in result["reason"].lower()
