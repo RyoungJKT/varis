@@ -12,6 +12,7 @@ from varis.m7_evolution.auto_retrain import (
     release_lock,
     run_retrain_loop,
 )
+from varis.m7_evolution.__main__ import build_parser
 from varis.m7_evolution.model_archive import (
     archive_version,
     deploy_version,
@@ -697,20 +698,38 @@ class TestCLI:
         # Verify we're back to v2026.01
         assert get_current_version(archive_root) == "v2026.01"
 
+    def test_scout_command_parses(self):
+        """CLI parser accepts 'scout' subcommand."""
+        parser = build_parser()
+        args = parser.parse_args(["scout"])
+        assert args.command == "scout"
 
-class TestStubImports:
-    """Verify stub modules can be imported without errors."""
+    def test_integrate_command_parses(self):
+        """CLI parser accepts 'integrate --tool X' subcommand."""
+        parser = build_parser()
+        args = parser.parse_args(["integrate", "--tool", "some-package"])
+        assert args.command == "integrate"
+        assert args.tool == "some-package"
 
-    def test_tool_scout_imports(self):
-        """tool_scout.py should import without ImportError."""
+
+class TestModuleImports:
+    """Verify M7 modules can be imported and have expected public API."""
+
+    def test_tool_scout_api(self):
+        """tool_scout has all expected public functions."""
         from varis.m7_evolution import tool_scout
-        assert hasattr(tool_scout, "scan_sources")
-        assert hasattr(tool_scout, "SCOUT_SOURCES")
+        assert callable(tool_scout.scan_sources)
+        assert callable(tool_scout.score_candidate)
+        assert callable(tool_scout.deduplicate)
+        assert callable(tool_scout.run_scout_loop)
 
-    def test_auto_integrator_imports(self):
-        """auto_integrator.py should import without ImportError."""
+    def test_auto_integrator_api(self):
+        """auto_integrator has all expected public functions."""
         from varis.m7_evolution import auto_integrator
-        assert hasattr(auto_integrator, "attempt_integration")
+        assert callable(auto_integrator.attempt_integration)
+        assert callable(auto_integrator.attempt_install)
+        assert callable(auto_integrator.probe_tool)
+        assert callable(auto_integrator.benchmark_new_feature)
 
 
 class TestM7Run:
