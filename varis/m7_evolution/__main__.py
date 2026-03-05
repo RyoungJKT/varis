@@ -5,6 +5,8 @@ Subcommands:
     rollback  - Rollback to the previous model version
     status    - Show current model version and recent deploy history
     log       - Display evolution log events
+    scout     - Run tool discovery scan (Loop 2)
+    integrate - Attempt integration of a tool (Loop 3)
 
 Examples:
     python -m varis.m7_evolution retrain
@@ -179,6 +181,36 @@ def cmd_log(args: argparse.Namespace) -> None:
         print(f"  {eid:<6} {ts:<28} {etype:<20} {version:<14} {details_str}")
 
 
+def cmd_scout(args: argparse.Namespace) -> None:
+    """Execute the scout subcommand.
+
+    Args:
+        args: Parsed CLI arguments.
+    """
+    from varis.m7_evolution.tool_scout import run_scout_loop
+
+    log_db = _get_log_db()
+    logger.info("Starting tool scout scan")
+    result = run_scout_loop(log_db=log_db)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_integrate(args: argparse.Namespace) -> None:
+    """Execute the integrate subcommand.
+
+    Args:
+        args: Parsed CLI arguments.
+    """
+    from varis.m7_evolution.auto_integrator import attempt_integration
+
+    log_db = _get_log_db()
+    proposal = {"name": args.tool, "package": args.tool, "source": "manual"}
+
+    logger.info("Attempting integration of %s", args.tool)
+    result = attempt_integration(proposal, log_db=log_db)
+    print(json.dumps(result, indent=2, default=str))
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser.
 
@@ -233,6 +265,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter by event type (e.g. DEPLOY, REJECT, RETRAIN_START)",
     )
 
+    # scout
+    subparsers.add_parser("scout", help="Run tool discovery scan")
+
+    # integrate
+    integrate_parser = subparsers.add_parser("integrate", help="Attempt integration of a tool")
+    integrate_parser.add_argument(
+        "--tool",
+        type=str,
+        required=True,
+        help="Package name to attempt installing and benchmarking",
+    )
+
     return parser
 
 
@@ -252,6 +296,8 @@ def main() -> None:
         "rollback": cmd_rollback,
         "status": cmd_status,
         "log": cmd_log,
+        "scout": cmd_scout,
+        "integrate": cmd_integrate,
     }
 
     handler = commands.get(args.command)
