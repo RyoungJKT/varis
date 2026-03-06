@@ -1006,7 +1006,7 @@ class TestAutoIntegrator:
         mock_result = MagicMock()
         mock_result.returncode = 1
 
-        with patch("varis.m7_evolution.auto_integrator.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("varis.m7_evolution.auto_integrator.subprocess.run", return_value=mock_result):
             result = attempt_install("nonexistent-package")
 
         assert result is False
